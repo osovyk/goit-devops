@@ -9,12 +9,13 @@ Includes S3 remote state backend, VPC networking, and ECR container registry.
 .
 ├── main.tf              # Root module — provider config and module calls
 ├── backend.tf           # S3 remote state backend configuration
+├── variables.tf         # All root-level input variables with defaults
 ├── outputs.tf           # Aggregated outputs from all modules
-├── .gitignore           # Ignored files (state, cache, secrets)
+├── .gitignore
 └── modules/
     ├── s3-backend/      # S3 bucket + DynamoDB for Terraform state
-    │   ├── s3.tf        # S3 bucket with versioning and ownership controls
-    │   ├── dynamodb.tf  # DynamoDB table for state locking
+    │   ├── s3.tf        # S3 bucket with versioning, encryption, public access block
+    │   ├── dynamodb.tf  # DynamoDB table with server-side encryption
     │   ├── variables.tf
     │   └── outputs.tf
     ├── vpc/             # VPC with public/private subnets
@@ -23,7 +24,7 @@ Includes S3 remote state backend, VPC networking, and ECR container registry.
     │   ├── variables.tf
     │   └── outputs.tf
     └── ecr/             # ECR container image repository
-        ├── ecr.tf       # Repository, lifecycle policy, access policy
+        ├── ecr.tf       # Repository with AES256 encryption, lifecycle policy, access policy
         ├── variables.tf
         └── outputs.tf
 ```
@@ -33,9 +34,12 @@ Includes S3 remote state backend, VPC networking, and ECR container registry.
 ### s3-backend
 Creates the remote backend for storing Terraform state.
 
-- S3 bucket with versioning enabled and `BucketOwnerEnforced` ownership
-- `force_destroy = true` to allow clean removal of versioned state files
-- DynamoDB table with `PAY_PER_REQUEST` billing and `LockID` hash key for state locking
+- S3 bucket with versioning enabled
+- AES256 server-side encryption
+- Public access block (all public access disabled)
+- `BucketOwnerEnforced` ownership controls
+- `force_destroy = true` for clean removal of versioned state files
+- DynamoDB table with `PAY_PER_REQUEST` billing and server-side encryption for state locking
 
 ### vpc
 Creates a full VPC network across 3 availability zones.
@@ -50,6 +54,7 @@ Creates a full VPC network across 3 availability zones.
 ### ecr
 Creates an ECR repository for Docker images.
 
+- AES256 encryption at rest
 - Image scanning on push enabled
 - Lifecycle policy to retain the last 10 images
 - Repository policy granting push/pull access to the AWS account root
@@ -64,6 +69,24 @@ Creates an ECR repository for Docker images.
 aws configure
 ```
 
+## Variables
+
+All variables are defined in `variables.tf` with default values.
+Override any variable at runtime with `-var="key=value"`.
+
+| Variable | Description | Default |
+|---|---|---|
+| `aws_region` | AWS region to deploy resources | `eu-west-1` |
+| `bucket_name` | S3 bucket name for Terraform state | `rosovyk-terraform-state` |
+| `dynamodb_table_name` | DynamoDB table name for state locking | `terraform-locks` |
+| `vpc_cidr_block` | CIDR block for the VPC | `10.0.0.0/16` |
+| `public_subnets` | List of public subnet CIDRs | `["10.0.1.0/24", ...]` |
+| `private_subnets` | List of private subnet CIDRs | `["10.0.4.0/24", ...]` |
+| `availability_zones` | List of availability zones | `["eu-west-1a", ...]` |
+| `vpc_name` | Name tag prefix for VPC resources | `vpc` |
+| `ecr_name` | ECR repository name | `lesson-5-ecr` |
+| `scan_on_push` | Enable ECR image scanning on push | `true` |
+
 ## Usage
 
 ### First run (bootstrap S3 backend)
@@ -73,17 +96,19 @@ On first run, comment out `backend.tf`, apply to create the bucket, then re-enab
 
 ```bash
 # 1. Comment out backend.tf, then:
+rm -rf .terraform
 terraform init
 terraform apply
 
 # 2. Uncomment backend.tf, then migrate state to S3:
-terraform init -reconfigure
+terraform init -migrate-state
+# enter: yes
 ```
 
 ### Regular commands
 
 ```bash
-# Initialize Terraform and download providers
+# Initialize Terraform
 terraform init
 
 # Preview infrastructure changes
@@ -96,13 +121,11 @@ terraform apply
 terraform destroy
 ```
 
-### Useful flags
+### Override variables at runtime
 
 ```bash
-terraform plan -out=tfplan        # Save plan to file
-terraform apply tfplan            # Apply saved plan
-terraform apply -auto-approve     # Skip confirmation prompt
-terraform destroy -target=module.vpc  # Destroy a single module
+terraform apply -var="aws_region=eu-central-1"
+terraform apply -var="vpc_name=my-vpc" -var="ecr_name=my-app"
 ```
 
 ## Outputs
@@ -122,5 +145,8 @@ terraform destroy -target=module.vpc  # Destroy a single module
 > Always run `terraform destroy` after testing to avoid unexpected bills.
 
 > **Destroy order:** Running `terraform destroy` also removes the S3 bucket and DynamoDB table
-> used as the backend. Before re-applying, comment out `backend.tf` and run
-> `terraform init -reconfigure` to switch back to local state.
+> used as the backend. Before re-applying, comment out `backend.tf` and run:
+> ```bash
+> rm -rf .terraform
+> terraform init
+> ```
