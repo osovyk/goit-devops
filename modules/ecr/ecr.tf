@@ -6,6 +6,10 @@ resource "aws_ecr_repository" "main" {
     scan_on_push = var.scan_on_push
   }
 
+  encryption_configuration {
+    encryption_type = "AES256"
+  }
+
   tags = {
     Name      = var.ecr_name
     ManagedBy = "terraform"

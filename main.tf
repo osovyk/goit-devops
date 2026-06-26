@@ -9,26 +9,26 @@ terraform {
 }
 
 provider "aws" {
-  region = "eu-west-1"
+  region = var.aws_region
 }
 
 module "s3_backend" {
   source      = "./modules/s3-backend"
-  bucket_name = "rosovyk-terraform-state"
-  table_name  = "terraform-locks"
+  bucket_name = var.bucket_name
+  table_name  = var.dynamodb_table_name
 }
 
 module "vpc" {
   source             = "./modules/vpc"
-  vpc_cidr_block     = "10.0.0.0/16"
-  public_subnets     = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
-  private_subnets    = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]
-  availability_zones = ["eu-west-1a", "eu-west-1b", "eu-west-1c"]
-  vpc_name           = "vpc"
+  vpc_cidr_block     = var.vpc_cidr_block
+  public_subnets     = var.public_subnets
+  private_subnets    = var.private_subnets
+  availability_zones = var.availability_zones
+  vpc_name           = var.vpc_name
 }
 
 module "ecr" {
   source       = "./modules/ecr"
-  ecr_name     = "lesson-5-ecr"
-  scan_on_push = true
+  ecr_name     = var.ecr_name
+  scan_on_push = var.scan_on_push
 }
