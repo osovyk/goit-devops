@@ -1,0 +1,6 @@
+apiVersion: v2
+name: django-app
+description: Helm chart for deploying the Django application on Kubernetes (EKS)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

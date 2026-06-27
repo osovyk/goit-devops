@@ -1,9 +1,9 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.15.7"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = "~> 6.0"
     }
   }
 }
@@ -31,4 +31,15 @@ module "ecr" {
   source       = "./modules/ecr"
   ecr_name     = var.ecr_name
   scan_on_push = var.scan_on_push
+}
+
+module "eks" {
+  source             = "./modules/eks"
+  cluster_name       = var.cluster_name
+  kubernetes_version = var.kubernetes_version
+  subnet_ids         = module.vpc.public_subnets
+  instance_type      = var.instance_type
+  desired_size       = var.desired_size
+  max_size           = var.max_size
+  min_size           = var.min_size
 }
