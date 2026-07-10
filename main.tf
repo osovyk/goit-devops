@@ -97,6 +97,8 @@ module "rds" {
   master_username = var.rds_master_username
   master_password = var.rds_master_password
 
+  backup_retention_period = var.rds_backup_retention_period
+
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 

@@ -163,19 +163,19 @@ variable "rds_engine_family" {
 variable "rds_engine_version" {
   description = "Database engine version, must match rds_engine_family/rds_use_aurora"
   type        = string
-  default     = "16.4"
+  default     = "17.6"
 }
 
 variable "rds_parameter_group_family" {
   description = "Parameter group family matching rds_engine_family/rds_engine_version/rds_use_aurora"
   type        = string
-  default     = "postgres16"
+  default     = "postgres17"
 }
 
 variable "rds_instance_class" {
-  description = "Instance class for the RDS/Aurora instance(s)"
+  description = "Instance class for the RDS/Aurora instance(s). This AWS account is Free-Tier-restricted — db.t3.micro is the only confirmed-working class."
   type        = string
-  default     = "db.t3.medium"
+  default     = "db.t3.micro"
 }
 
 variable "rds_multi_az" {
@@ -197,9 +197,9 @@ variable "rds_db_name" {
 }
 
 variable "rds_master_username" {
-  description = "Master username for the database"
+  description = "Master username for the database. Avoid \"admin\" — it's a reserved word for the postgres engine on RDS."
   type        = string
-  default     = "admin"
+  default     = "dbadmin"
 }
 
 variable "rds_master_password" {
@@ -207,4 +207,10 @@ variable "rds_master_password" {
   type        = string
   default     = null
   sensitive   = true
+}
+
+variable "rds_backup_retention_period" {
+  description = "Number of days to retain automated RDS/Aurora backups. Free-Tier-restricted AWS accounts may cap this below the module's own default (7)."
+  type        = number
+  default     = 1
 }

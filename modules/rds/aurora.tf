@@ -9,16 +9,13 @@ resource "aws_rds_cluster_parameter_group" "this" {
   dynamic "parameter" {
     for_each = local.parameters
     content {
-      name  = parameter.key
-      value = parameter.value
+      name         = parameter.key
+      value        = parameter.value
+      apply_method = "pending-reboot"
     }
   }
 
   tags = merge(var.tags, { Name = "${var.identifier}-cluster-params" })
-
-  lifecycle {
-    create_before_destroy = true
-  }
 }
 
 resource "aws_rds_cluster" "this" {

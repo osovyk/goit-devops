@@ -18,6 +18,13 @@
 | `aws_rds_cluster_parameter_group` | — | ✅ |
 | `random_password` | тільки якщо `master_password` не задано | тільки якщо `master_password` не задано |
 
+> Стандартний RDS-шлях (`use_aurora = false`, PostgreSQL 17.6, `db.t3.micro`) реально
+> задеплоєно й перевірено end-to-end: instance перейшов у статус `available`, parameter group
+> застосувала всі три базові параметри (`max_connections`, `log_statement`, `work_mem`), security
+> group коректно обмежив доступ до порту 5432 заданим CIDR. Aurora-шлях перевірено через
+> `terraform plan` (коректний набір ресурсів без залишків RDS-ресурсів), але не задеплоєно
+> end-to-end.
+
 ## Приклад використання
 
 ### Звичайна RDS (PostgreSQL)
@@ -29,8 +36,8 @@ module "rds" {
   identifier      = "myapp-db"
   use_aurora      = false
   engine_family   = "postgres"
-  engine_version  = "16.4"
-  parameter_group_family = "postgres16"
+  engine_version  = "17.6"
+  parameter_group_family = "postgres17"
   instance_class  = "db.t3.medium"
   multi_az        = true
 
@@ -58,8 +65,8 @@ module "rds_aurora" {
   identifier      = "myapp-aurora"
   use_aurora      = true
   engine_family   = "postgres"
-  engine_version  = "16.4"
-  parameter_group_family = "aurora-postgresql16"
+  engine_version  = "17.6"
+  parameter_group_family = "aurora-postgresql17"
   instance_class  = "db.r6g.large"
   aurora_instance_count = 2 # 1 writer + 1 reader
 
@@ -129,7 +136,7 @@ module "rds_mysql" {
 | `multi_az` | Multi-AZ для звичайної RDS (ігнорується для Aurora) | `bool` | `false` |
 | `aurora_instance_count` | Кількість інстансів в Aurora-кластері | `number` | `1` |
 | `db_name` | Ім'я дефолтної бази даних | `string` | — (обов'язкова) |
-| `master_username` | Ім'я адміністратора БД | `string` | `"admin"` |
+| `master_username` | Ім'я адміністратора БД. **Не використовуйте `"admin"`** — це зарезервоване слово для PostgreSQL на RDS, `CreateDBInstance` впаде з `InvalidParameterValue` | `string` | `"dbadmin"` |
 | `master_password` | Пароль адміністратора. `null` → модуль згенерує та поверне у `master_password` output | `string` | `null` |
 | `allocated_storage` | Розмір диска в ГБ (тільки для звичайної RDS) | `number` | `20` |
 | `storage_type` | Тип диска (тільки для звичайної RDS) | `string` | `"gp3"` |

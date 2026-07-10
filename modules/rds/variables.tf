@@ -54,9 +54,9 @@ variable "db_name" {
 }
 
 variable "master_username" {
-  description = "Master username for the database"
+  description = "Master username for the database. Avoid \"admin\" — it's a reserved word for the postgres engine on RDS."
   type        = string
-  default     = "admin"
+  default     = "dbadmin"
 }
 
 variable "master_password" {
