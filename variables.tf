@@ -127,7 +127,7 @@ variable "git_repo_url" {
 variable "git_target_branch" {
   description = "Branch Jenkins pushes tag bumps to and Argo CD tracks. This repo has no `main` — it's lesson-per-branch, so this must be updated each lesson."
   type        = string
-  default     = "lesson-9"
+  default     = "lesson-10"
 }
 
 variable "github_username" {
@@ -139,5 +139,72 @@ variable "github_username" {
 variable "github_token" {
   description = "GitHub personal access token (repo scope) used by Jenkins to push Helm chart tag bumps. Supply via terraform.tfvars (gitignored)."
   type        = string
+  sensitive   = true
+}
+
+variable "rds_identifier" {
+  description = "Base name for the RDS/Aurora resources"
+  type        = string
+  default     = "lesson-10-db"
+}
+
+variable "rds_use_aurora" {
+  description = "true creates an Aurora cluster, false creates a standalone RDS instance"
+  type        = bool
+  default     = false
+}
+
+variable "rds_engine_family" {
+  description = "Database engine family: \"postgres\" or \"mysql\""
+  type        = string
+  default     = "postgres"
+}
+
+variable "rds_engine_version" {
+  description = "Database engine version, must match rds_engine_family/rds_use_aurora"
+  type        = string
+  default     = "16.4"
+}
+
+variable "rds_parameter_group_family" {
+  description = "Parameter group family matching rds_engine_family/rds_engine_version/rds_use_aurora"
+  type        = string
+  default     = "postgres16"
+}
+
+variable "rds_instance_class" {
+  description = "Instance class for the RDS/Aurora instance(s)"
+  type        = string
+  default     = "db.t3.medium"
+}
+
+variable "rds_multi_az" {
+  description = "Enable Multi-AZ for a standalone RDS instance (ignored when rds_use_aurora = true)"
+  type        = bool
+  default     = false
+}
+
+variable "rds_aurora_instance_count" {
+  description = "Number of Aurora cluster instances (only used when rds_use_aurora = true)"
+  type        = number
+  default     = 1
+}
+
+variable "rds_db_name" {
+  description = "Name of the default database"
+  type        = string
+  default     = "myapp"
+}
+
+variable "rds_master_username" {
+  description = "Master username for the database"
+  type        = string
+  default     = "admin"
+}
+
+variable "rds_master_password" {
+  description = "Master password for the database. Leave null (do not set in *.tfvars) to have the module generate one."
+  type        = string
+  default     = null
   sensitive   = true
 }

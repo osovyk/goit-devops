@@ -1,12 +1,13 @@
-# Lesson 9 — Jenkins + Terraform + ECR + Helm + Argo CD CI/CD
+# Lesson 10 — Jenkins + Terraform + ECR + Helm + Argo CD + RDS CI/CD
 
 Terraform project for provisioning AWS infrastructure with an EKS Kubernetes cluster, a full
-CI/CD pipeline (Jenkins building with Kaniko, pushing to ECR, updating the Helm chart) and
-GitOps delivery (Argo CD auto-syncing the chart into the cluster).
+CI/CD pipeline (Jenkins building with Kaniko, pushing to ECR, updating the Helm chart), GitOps
+delivery (Argo CD auto-syncing the chart into the cluster), and a database layer (a reusable
+`rds` module that provisions either a standalone RDS instance or an Aurora cluster).
 
-Extends the Lesson 7 infrastructure (S3 backend, VPC, ECR, EKS, Helm chart) with `jenkins` and
-`argo_cd` modules, and brings back the Django app source (`app/`) so Jenkins has something to
-build.
+Extends the Lesson 9 infrastructure (S3 backend, VPC, ECR, EKS, Jenkins, Argo CD, Helm chart)
+with the `rds` module — see [`modules/rds/README.md`](modules/rds/README.md) for full module
+documentation (usage examples, all variables, how to switch RDS ⇄ Aurora / Postgres ⇄ MySQL).
 
 ## Pipeline flow
 
@@ -82,6 +83,13 @@ for Jenkins' PVC) uses IRSA too.
 │   │   ├── providers.tf           # kubernetes provider (for the StorageClass)
 │   │   ├── variables.tf
 │   │   └── outputs.tf
+│   ├── rds/              # Universal RDS/Aurora database module
+│   │   ├── shared.tf      # DB subnet group, security group, locals, random password
+│   │   ├── rds.tf          # Standalone aws_db_instance + parameter group (use_aurora = false)
+│   │   ├── aurora.tf       # aws_rds_cluster + instances + parameter group (use_aurora = true)
+│   │   ├── variables.tf
+│   │   ├── outputs.tf
+│   │   └── README.md      # Usage examples, variables reference, RDS ⇄ Aurora / engine switching
 │   ├── jenkins/          # Jenkins installed via Helm, Kubernetes agent + Kaniko
 │   │   ├── jenkins.tf     # Namespace, GitHub credentials Secret, helm_release
 │   │   ├── irsa.tf        # IAM role for the jenkins-agent service account (ECR push)
@@ -178,6 +186,24 @@ Installs Argo CD on the cluster via Helm, plus an `Application` that tracks `cha
 - The chart's `repository.yaml` template is included but unused for this public repo — it's there
   to document how to add Argo CD repository credentials if the repo is ever made private
 
+### rds
+
+Universal database module — see [`modules/rds/README.md`](modules/rds/README.md) for the full
+writeup (usage examples, all variables/outputs, how to switch engines).
+
+- `var.use_aurora` picks between a standalone `aws_db_instance` (`rds.tf`) or an
+  `aws_rds_cluster` + `aws_rds_cluster_instance` set (`aurora.tf`) — mutually exclusive via
+  `count = var.use_aurora ? 1 : 0` (and the inverse)
+- Both paths share (`shared.tf`) a `aws_db_subnet_group`, a `aws_security_group` (ingress from
+  `allowed_cidr_blocks` / `allowed_security_group_ids`), and a generated `random_password` used
+  whenever `master_password` is left `null`
+- Parameter group (`aws_db_parameter_group` or `aws_rds_cluster_parameter_group` to match) is
+  seeded with baseline `max_connections` / `log_statement` / `work_mem` (Postgres) or
+  `max_connections` / `general_log` / `sort_buffer_size` (MySQL), overridable via `db_parameters`
+- `var.engine_family` (`"postgres"`/`"mysql"`) drives the actual `engine` string for both RDS
+  (`postgres`/`mysql`) and Aurora (`aurora-postgresql`/`aurora-mysql`)
+- Deployed in `module.vpc.private_subnets`, reachable from the VPC CIDR (`allowed_cidr_blocks`)
+
 ## Helm Chart — django-app
 
 Located in `charts/django-app/`. Deploys the Django app from ECR to EKS.
@@ -215,7 +241,7 @@ All defaults are defined in root `variables.tf`. Module variables intentionally 
 | `scan_on_push` | Enable ECR image scanning on push | `true` |
 | `cluster_name` | Name of the EKS cluster | `lesson-7-eks` |
 | `kubernetes_version` | Kubernetes version for EKS | `1.36` |
-| `instance_type` | EC2 instance type for worker nodes | `t3.medium` |
+| `instance_type` | EC2 instance type for worker nodes. This AWS account is Free-Tier-restricted — must stay one of `t3.micro`/`t3.small`/`c7i-flex.large`/`m7i-flex.large` | `m7i-flex.large` |
 | `desired_size` | Desired number of worker nodes | `2` |
 | `max_size` | Maximum number of worker nodes | `3` |
 | `min_size` | Minimum number of worker nodes | `1` |
@@ -224,9 +250,20 @@ All defaults are defined in root `variables.tf`. Module variables intentionally 
 | `argocd_namespace` | Kubernetes namespace for Argo CD | `argocd` |
 | `argocd_chart_version` | Version of the `argo/argo-cd` chart | `10.1.2` |
 | `git_repo_url` | HTTPS URL of this repo (Jenkins push target / Argo CD sync source) | `https://github.com/osovyk/goit-devops.git` |
-| `git_target_branch` | Branch Jenkins pushes to / Argo CD tracks (no `main` here — bump each lesson) | `lesson-9` |
+| `git_target_branch` | Branch Jenkins pushes to / Argo CD tracks (no `main` here — bump each lesson) | `lesson-10` |
 | `github_username` | GitHub username for Jenkins' push credentials | *(required, sensitive, no default)* |
 | `github_token` | GitHub PAT (repo scope) for Jenkins' push credentials | *(required, sensitive, no default)* |
+| `rds_identifier` | Base name for the RDS/Aurora resources | `lesson-10-db` |
+| `rds_use_aurora` | `true` → Aurora cluster, `false` → standalone RDS instance | `false` |
+| `rds_engine_family` | `"postgres"` or `"mysql"` | `postgres` |
+| `rds_engine_version` | Engine version (must match `rds_engine_family`/`rds_use_aurora`) | `16.4` |
+| `rds_parameter_group_family` | Parameter group family, e.g. `postgres16`, `aurora-postgresql16` | `postgres16` |
+| `rds_instance_class` | Instance class for the RDS/Aurora instance(s) | `db.t3.medium` |
+| `rds_multi_az` | Multi-AZ for standalone RDS (ignored for Aurora) | `false` |
+| `rds_aurora_instance_count` | Number of Aurora cluster instances | `1` |
+| `rds_db_name` | Name of the default database | `myapp` |
+| `rds_master_username` | Master username for the database | `admin` |
+| `rds_master_password` | Master password. Leave unset in `terraform.tfvars` to auto-generate | *(sensitive, `null` by default)* |
 
 ## Usage
 
@@ -346,12 +383,16 @@ helm uninstall django-app
 | `jenkins_admin_password_command` | Command to retrieve the Jenkins admin password |
 | `argocd_namespace` | Kubernetes namespace Argo CD is installed into |
 | `argocd_admin_password_command` | Command to retrieve the Argo CD initial admin password |
+| `rds_endpoint` | RDS/Aurora connection endpoint |
+| `rds_reader_endpoint` | Aurora reader endpoint (`null` for standalone RDS) |
+| `rds_master_username` | RDS/Aurora master username |
+| `rds_master_password` | RDS/Aurora master password (sensitive) |
 
 ## Important Notes
 
-**Cost warning:** EKS cluster (~$0.10/hr), NAT Gateway, EC2 worker nodes (t3.medium x2),
-Elastic IP, and now two extra LoadBalancers (Jenkins UI, Argo CD UI) all incur AWS charges.
-Always run `terraform destroy` after testing. If Jenkins/Argo CD pods stay `Pending` due to
+**Cost warning:** EKS cluster (~$0.10/hr), NAT Gateway, EC2 worker nodes, Elastic IP, two
+LoadBalancers (Jenkins UI, Argo CD UI), and now an RDS instance/Aurora cluster all incur AWS
+charges. Always run `terraform destroy` after testing. If Jenkins/Argo CD pods stay `Pending` due to
 resource pressure on the two `t3.medium` nodes, bump `desired_size`/`instance_type`.
 
 **EKS provisioning time:** ~15 minutes is normal for the control plane and node group.

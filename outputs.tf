@@ -62,3 +62,24 @@ output "argocd_admin_password_command" {
   description = "Command to retrieve the Argo CD initial admin password"
   value       = module.argo_cd.admin_password_command
 }
+
+output "rds_endpoint" {
+  description = "RDS/Aurora connection endpoint"
+  value       = module.rds.endpoint
+}
+
+output "rds_reader_endpoint" {
+  description = "Aurora reader endpoint (null for standalone RDS)"
+  value       = module.rds.reader_endpoint
+}
+
+output "rds_master_username" {
+  description = "RDS/Aurora master username"
+  value       = module.rds.master_username
+}
+
+output "rds_master_password" {
+  description = "RDS/Aurora master password"
+  value       = module.rds.master_password
+  sensitive   = true
+}

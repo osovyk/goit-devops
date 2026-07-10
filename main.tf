@@ -80,3 +80,32 @@ module "argo_cd" {
   helm_chart_path = "charts/django-app"
   target_revision = var.git_target_branch
 }
+
+module "rds" {
+  source = "./modules/rds"
+
+  identifier             = var.rds_identifier
+  use_aurora             = var.rds_use_aurora
+  engine_family          = var.rds_engine_family
+  engine_version         = var.rds_engine_version
+  parameter_group_family = var.rds_parameter_group_family
+  instance_class         = var.rds_instance_class
+  multi_az               = var.rds_multi_az
+  aurora_instance_count  = var.rds_aurora_instance_count
+
+  db_name         = var.rds_db_name
+  master_username = var.rds_master_username
+  master_password = var.rds_master_password
+
+  vpc_id     = module.vpc.vpc_id
+  subnet_ids = module.vpc.private_subnets
+
+  # Django pods run in the public subnets (see module.eks.subnet_ids) — allow
+  # the whole VPC CIDR rather than a single node security group id, since the
+  # eks module doesn't expose one explicitly.
+  allowed_cidr_blocks = [var.vpc_cidr_block]
+
+  tags = {
+    Project = "goit-devops"
+  }
+}
