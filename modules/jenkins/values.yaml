@@ -1,6 +1,9 @@
 controller:
   serviceType: LoadBalancer
 
+  additionalPlugins:
+    - kubernetes-credentials-provider
+
   JCasC:
     defaultConfig: true
     configScripts:
@@ -31,8 +34,9 @@ agent:
             args: "9999999"
             ttyEnabled: true
             envVars:
-              - name: AWS_SDK_LOAD_CONFIG
-                value: "true"
+              - envVar:
+                  key: AWS_SDK_LOAD_CONFIG
+                  value: "true"
             resourceRequestCpu: "500m"
             resourceRequestMemory: "512Mi"
             resourceLimitCpu: "1"

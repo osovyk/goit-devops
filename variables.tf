@@ -71,9 +71,9 @@ variable "kubernetes_version" {
 }
 
 variable "instance_type" {
-  description = "EC2 instance type for the EKS worker nodes"
+  description = "EC2 instance type for the EKS worker nodes. This AWS account has a hard Free-Tier-only restriction, so this must stay one of the free-tier-eligible x86_64 types (t3.micro, t3.small, c7i-flex.large, m7i-flex.large)."
   type        = string
-  default     = "t3.medium"
+  default     = "m7i-flex.large"
 }
 
 variable "desired_size" {
