@@ -1,0 +1,14 @@
+{{- range .Values.repositories }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repo-{{ .name | default (regexReplaceAll "[^a-zA-Z0-9]" .url "-") }}
+  namespace: {{ $.Values.argocdNamespace | default "argocd" }}
+  labels:
+    argocd.argoproj.io/secret-type: repository
+stringData:
+  url: {{ .url }}
+  username: {{ .username }}
+  password: {{ .password }}
+---
+{{- end }}

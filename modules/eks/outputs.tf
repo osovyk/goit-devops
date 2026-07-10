@@ -17,3 +17,13 @@ output "eks_node_role_arn" {
   description = "IAM role ARN for EKS worker nodes"
   value       = aws_iam_role.nodes.arn
 }
+
+output "oidc_provider_arn" {
+  description = "ARN of the IAM OIDC provider for the EKS cluster (used for IRSA)"
+  value       = aws_iam_openid_connect_provider.eks.arn
+}
+
+output "oidc_provider_url" {
+  description = "URL of the IAM OIDC provider for the EKS cluster, without the https:// scheme"
+  value       = replace(aws_iam_openid_connect_provider.eks.url, "https://", "")
+}

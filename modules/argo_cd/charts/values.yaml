@@ -1,0 +1,17 @@
+argocdNamespace: argocd
+
+# Each entry becomes an Argo CD Application, auto-synced (prune + selfHeal) from the given repo/path.
+applications: []
+# - name: django-app
+#   project: default
+#   repoURL: https://github.com/osovyk/goit-devops-lesson-3.git
+#   targetRevision: main
+#   path: charts/django-app
+#   destinationNamespace: default
+
+# Optional: only needed for private repositories. Each entry becomes an Argo CD
+# repository credentials Secret (labeled argocd.argoproj.io/secret-type: repository).
+repositories: []
+# - url: https://github.com/osovyk/goit-devops-lesson-3.git
+#   username: some-user
+#   password: some-token

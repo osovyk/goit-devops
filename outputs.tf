@@ -42,3 +42,23 @@ output "eks_node_role_arn" {
   description = "IAM role ARN for EKS worker nodes"
   value       = module.eks.eks_node_role_arn
 }
+
+output "jenkins_namespace" {
+  description = "Kubernetes namespace Jenkins is installed into"
+  value       = module.jenkins.namespace
+}
+
+output "jenkins_admin_password_command" {
+  description = "Command to retrieve the Jenkins admin password"
+  value       = module.jenkins.admin_password_command
+}
+
+output "argocd_namespace" {
+  description = "Kubernetes namespace Argo CD is installed into"
+  value       = module.argo_cd.namespace
+}
+
+output "argocd_admin_password_command" {
+  description = "Command to retrieve the Argo CD initial admin password"
+  value       = module.argo_cd.admin_password_command
+}

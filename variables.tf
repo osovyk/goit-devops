@@ -93,3 +93,51 @@ variable "min_size" {
   type        = number
   default     = 1
 }
+
+variable "jenkins_namespace" {
+  description = "Kubernetes namespace to install Jenkins into"
+  type        = string
+  default     = "jenkins"
+}
+
+variable "jenkins_chart_version" {
+  description = "Version of the jenkins/jenkins Helm chart"
+  type        = string
+  default     = "5.9.32"
+}
+
+variable "argocd_namespace" {
+  description = "Kubernetes namespace to install Argo CD into"
+  type        = string
+  default     = "argocd"
+}
+
+variable "argocd_chart_version" {
+  description = "Version of the argo/argo-cd Helm chart"
+  type        = string
+  default     = "10.1.2"
+}
+
+variable "git_repo_url" {
+  description = "HTTPS URL of this git repository, used by Jenkins (push target) and Argo CD (sync source)"
+  type        = string
+  default     = "https://github.com/osovyk/goit-devops.git"
+}
+
+variable "git_target_branch" {
+  description = "Branch Jenkins pushes tag bumps to and Argo CD tracks. This repo has no `main` — it's lesson-per-branch, so this must be updated each lesson."
+  type        = string
+  default     = "lesson-9"
+}
+
+variable "github_username" {
+  description = "GitHub username used by Jenkins to push Helm chart tag bumps. Supply via terraform.tfvars (gitignored)."
+  type        = string
+  sensitive   = true
+}
+
+variable "github_token" {
+  description = "GitHub personal access token (repo scope) used by Jenkins to push Helm chart tag bumps. Supply via terraform.tfvars (gitignored)."
+  type        = string
+  sensitive   = true
+}

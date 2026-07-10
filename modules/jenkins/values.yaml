@@ -1,0 +1,49 @@
+controller:
+  serviceType: LoadBalancer
+
+  JCasC:
+    defaultConfig: true
+    configScripts:
+      global-env: |
+        jenkins:
+          globalNodeProperties:
+            - envVars:
+                env:
+                  - key: "ECR_REPOSITORY_URL"
+                    value: "${ecr_repository_url}"
+                  - key: "AWS_REGION"
+                    value: "${aws_region}"
+                  - key: "GIT_REPO_URL"
+                    value: "${git_repo_url}"
+                  - key: "GIT_TARGET_BRANCH"
+                    value: "${git_target_branch}"
+
+agent:
+  podTemplates:
+    kaniko: |
+      - name: kaniko
+        label: kaniko
+        serviceAccount: jenkins-agent
+        containers:
+          - name: kaniko
+            image: gcr.io/kaniko-project/executor:debug
+            command: "/busybox/sleep"
+            args: "9999999"
+            ttyEnabled: true
+            envVars:
+              - name: AWS_SDK_LOAD_CONFIG
+                value: "true"
+            resourceRequestCpu: "500m"
+            resourceRequestMemory: "512Mi"
+            resourceLimitCpu: "1"
+            resourceLimitMemory: "1Gi"
+
+serviceAccountAgent:
+  create: true
+  name: jenkins-agent
+  annotations:
+    eks.amazonaws.com/role-arn: "${jenkins_agent_role_arn}"
+
+rbac:
+  create: true
+  readSecrets: true
