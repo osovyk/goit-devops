@@ -29,9 +29,13 @@ No static AWS credentials anywhere: the Jenkins agent's Kaniko container pushes 
 IRSA (an IAM role assumed via the EKS cluster's OIDC provider), and the EBS CSI driver (needed
 for Jenkins' PVC) uses IRSA too.
 
+The chart-bump commit carries `[ci skip]` so an SCM-triggered pipeline doesn't re-trigger itself
+on its own push. `options { disableConcurrentBuilds(); buildDiscarder(...) }` caps concurrent runs
+and build history, and `post { always { cleanWs() } }` wipes the workspace after every run.
+
 **This repo has no `main` branch** — it's lesson-per-branch (`lesson-3`, `lesson-4`, `lesson-5`,
 `lesson-7`, ...). The branch Jenkins pushes to and Argo CD tracks is controlled by
-`var.git_target_branch` (default `lesson-9`) and must be bumped each lesson.
+`var.git_target_branch` (default `lesson-10`) and must be bumped each lesson.
 
 ## Versions
 
@@ -49,8 +53,8 @@ for Jenkins' PVC) uses IRSA too.
 
 ```text
 .
-├── main.tf              # Root module — provider config and module calls
-├── backend.tf           # S3 remote state backend configuration
+├── main.tf              # Root module — aws/kubernetes/helm providers, module calls
+├── backend.tf           # S3 remote state backend configuration (bucket + DynamoDB lock table)
 ├── variables.tf         # All root-level input variables with defaults
 ├── outputs.tf           # Aggregated outputs from all modules
 ├── Jenkinsfile           # CI pipeline: Kaniko build/push + Helm chart tag bump
@@ -93,13 +97,14 @@ for Jenkins' PVC) uses IRSA too.
 │   ├── jenkins/          # Jenkins installed via Helm, Kubernetes agent + Kaniko
 │   │   ├── jenkins.tf     # Namespace, GitHub credentials Secret, helm_release
 │   │   ├── irsa.tf        # IAM role for the jenkins-agent service account (ECR push)
-│   │   ├── providers.tf   # kubernetes + helm providers
-│   │   ├── values.yaml    # Templated: JCasC global env vars, Kaniko pod template
+│   │   ├── providers.tf   # required_providers only — actual kubernetes/helm provider
+│   │   │                  #   configs live in root main.tf so depends_on = [module.eks] works
+│   │   ├── values.yaml    # Templated: JCasC global env vars, Kaniko pod template, resources
 │   │   ├── variables.tf
 │   │   └── outputs.tf
 │   └── argo_cd/          # Argo CD installed via Helm
 │       ├── argocd.tf      # helm_release "argocd" + helm_release "argocd_apps"
-│       ├── providers.tf   # kubernetes + helm providers
+│       ├── providers.tf   # required_providers only — see note above
 │       ├── values.yaml
 │       ├── variables.tf
 │       ├── outputs.tf
@@ -161,7 +166,10 @@ Creates a managed Kubernetes cluster on AWS EKS.
 
 Installs Jenkins on the cluster via Helm, configured for CI builds with a Kubernetes agent.
 
-- `helm_release` for `jenkins/jenkins`, namespace created by the module
+- `helm_release` for `jenkins/jenkins`, namespace created by the module; called from root with
+  `depends_on = [module.eks]` since the helm/kubernetes providers (configured once in root
+  `main.tf`) need a live cluster before Terraform can even plan this module's resources
+- `controller.resources` — requests `500m`/`512Mi`, limits `2000m`/`2048Mi`
 - `serviceAccountAgent` "jenkins-agent" annotated with an IRSA role scoped to
   `ecr:GetAuthorizationToken` (account-wide, required by ECR) and push actions scoped to the
   single ECR repository ARN — no static AWS keys
@@ -172,12 +180,18 @@ Installs Jenkins on the cluster via Helm, configured for CI builds with a Kubern
 - A Kubernetes Secret (`github-credentials`, labeled for the bundled Kubernetes Credentials
   Provider plugin) exposes the GitHub PAT supplied via `var.github_username` / `var.github_token`
   as Jenkins credentials id `github-credentials`, used by the `Jenkinsfile` to push tag bumps
+- `additionalPlugins` includes `kubernetes-credentials-provider` (surfaces the Secret above as a
+  Jenkins credential) and `ws-cleanup` (for the Jenkinsfile's `post { cleanWs() }`) — neither
+  ships in the chart's default plugin set
 
 ### argo_cd
 
 Installs Argo CD on the cluster via Helm, plus an `Application` that tracks `charts/django-app`.
+Also called from root with `depends_on = [module.eks]`, same reasoning as `jenkins` above.
 
 - `helm_release "argocd"` for `argo/argo-cd`, namespace created by the module
+- `server.resources` and `repoServer.resources` — requests `100m`/`128Mi`, limits `500m`/`512Mi`
+  on both, `replicas: 1` each
 - `helm_release "argocd_apps"` installs a small local chart (`modules/argo_cd/charts`) that
   renders an Argo CD `Application` per entry in its `applications` list — currently one entry,
   `django-app`, pointed at `var.git_repo_url` / `charts/django-app` / `var.target_revision`
@@ -256,35 +270,41 @@ All defaults are defined in root `variables.tf`. Module variables intentionally 
 | `rds_identifier` | Base name for the RDS/Aurora resources | `lesson-10-db` |
 | `rds_use_aurora` | `true` → Aurora cluster, `false` → standalone RDS instance | `false` |
 | `rds_engine_family` | `"postgres"` or `"mysql"` | `postgres` |
-| `rds_engine_version` | Engine version (must match `rds_engine_family`/`rds_use_aurora`) | `16.4` |
-| `rds_parameter_group_family` | Parameter group family, e.g. `postgres16`, `aurora-postgresql16` | `postgres16` |
-| `rds_instance_class` | Instance class for the RDS/Aurora instance(s) | `db.t3.medium` |
+| `rds_engine_version` | Engine version (must match `rds_engine_family`/`rds_use_aurora`) | `17.6` |
+| `rds_parameter_group_family` | Parameter group family, e.g. `postgres17`, `aurora-postgresql17` | `postgres17` |
+| `rds_instance_class` | Instance class for the RDS/Aurora instance(s). Free-Tier-restricted — `db.t3.micro` is the only confirmed-working class here | `db.t3.micro` |
 | `rds_multi_az` | Multi-AZ for standalone RDS (ignored for Aurora) | `false` |
 | `rds_aurora_instance_count` | Number of Aurora cluster instances | `1` |
 | `rds_db_name` | Name of the default database | `myapp` |
-| `rds_master_username` | Master username for the database | `admin` |
+| `rds_master_username` | Master username for the database. Avoid `"admin"` — reserved word for postgres on RDS | `dbadmin` |
 | `rds_master_password` | Master password. Leave unset in `terraform.tfvars` to auto-generate | *(sensitive, `null` by default)* |
+| `rds_backup_retention_period` | Days to retain automated backups. This Free-Tier account caps it below the module's own default (7) | `1` |
 
 ## Usage
 
-### Step 1 — Bootstrap Terraform (first run)
+### Step 1 — Bootstrap Terraform (first run only, on a fresh AWS account)
 
-The S3 bucket must exist before Terraform can use it as a backend.
+`backend.tf` is committed active (S3 + DynamoDB lock table), but that bucket/table must exist
+*before* Terraform can use them as a backend. On a brand-new account, comment `backend.tf` out
+first so the bootstrap run uses local state:
 
 ```bash
-# Ensure backend.tf is commented out, then:
+# Comment out backend.tf, then:
 rm -rf .terraform
 terraform init
-terraform apply
+terraform apply -target=module.s3_backend
 ```
 
 ### Step 2 — Migrate state to S3 backend
 
 ```bash
-# Uncomment backend.tf, then:
+# Uncomment backend.tf again, then:
 terraform init -migrate-state
 # enter: yes
 ```
+
+If the S3 bucket and DynamoDB table already exist (anyone re-cloning this repo), skip straight to
+`terraform init` — `backend.tf` is already active, no bootstrap needed.
 
 ### Regular Terraform commands
 
@@ -320,7 +340,7 @@ kubectl -n jenkins get svc jenkins -o jsonpath='{.status.loadBalancer.ingress[0]
 ```
 
 In the Jenkins UI, create a **Pipeline** job (or Multibranch Pipeline) pointed at this repo's
-`Jenkinsfile` on the `git_target_branch` branch (default `lesson-9`). Every build:
+`Jenkinsfile` on the `git_target_branch` branch (default `lesson-10`). Every build:
 builds `app/Dockerfile` with Kaniko, pushes `<tag>` and `latest` to ECR, then bumps
 `charts/django-app/values.yaml` and pushes back to that same branch.
 
@@ -408,3 +428,9 @@ terraform init
 **GitHub credentials:** `github_username`/`github_token` have no default and must be supplied via
 an untracked `terraform.tfvars` (see Step 2) — Jenkins needs push access to commit Helm chart tag
 bumps back to the `git_target_branch` branch.
+
+**`dynamodb_table` deprecation warning:** `terraform init` prints a warning that `dynamodb_table`
+in `backend.tf` is deprecated in favor of `use_lockfile` (S3-native locking, Terraform 1.10+).
+It's kept here deliberately — the `s3-backend` module already provisions the DynamoDB table for
+locking, and this is the same field name used in the course material. Both work; only the warning
+is cosmetic.
