@@ -127,7 +127,7 @@ variable "git_repo_url" {
 variable "git_target_branch" {
   description = "Branch Jenkins pushes tag bumps to and Argo CD tracks. This repo has no `main` — it's lesson-per-branch, so this must be updated each lesson."
   type        = string
-  default     = "lesson-10"
+  default     = "lesson-9"
 }
 
 variable "github_username" {
@@ -145,7 +145,7 @@ variable "github_token" {
 variable "rds_identifier" {
   description = "Base name for the RDS/Aurora resources"
   type        = string
-  default     = "lesson-10-db"
+  default     = "lesson-9-db"
 }
 
 variable "rds_use_aurora" {
