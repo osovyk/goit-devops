@@ -5,11 +5,37 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.0"
     }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.0"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.0"
+    }
   }
 }
 
 provider "aws" {
   region = var.aws_region
+}
+
+data "aws_eks_cluster_auth" "this" {
+  name = module.eks.eks_cluster_name
+}
+
+provider "kubernetes" {
+  host                   = module.eks.eks_cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.eks_cluster_certificate)
+  token                  = data.aws_eks_cluster_auth.this.token
+}
+
+provider "helm" {
+  kubernetes {
+    host                   = module.eks.eks_cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks.eks_cluster_certificate)
+    token                  = data.aws_eks_cluster_auth.this.token
+  }
 }
 
 module "s3_backend" {
@@ -48,8 +74,6 @@ module "jenkins" {
   source = "./modules/jenkins"
 
   cluster_name      = module.eks.eks_cluster_name
-  cluster_endpoint  = module.eks.eks_cluster_endpoint
-  cluster_ca        = module.eks.eks_cluster_certificate
   oidc_provider_arn = module.eks.oidc_provider_arn
   oidc_provider_url = module.eks.oidc_provider_url
 
@@ -64,14 +88,12 @@ module "jenkins" {
   git_target_branch = var.git_target_branch
   github_username   = var.github_username
   github_token      = var.github_token
+
+  depends_on = [module.eks]
 }
 
 module "argo_cd" {
   source = "./modules/argo_cd"
-
-  cluster_name     = module.eks.eks_cluster_name
-  cluster_endpoint = module.eks.eks_cluster_endpoint
-  cluster_ca       = module.eks.eks_cluster_certificate
 
   namespace     = var.argocd_namespace
   chart_version = var.argocd_chart_version
@@ -79,6 +101,8 @@ module "argo_cd" {
   git_repo_url    = var.git_repo_url
   helm_chart_path = "charts/django-app"
   target_revision = var.git_target_branch
+
+  depends_on = [module.eks]
 }
 
 module "rds" {

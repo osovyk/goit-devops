@@ -3,6 +3,11 @@ pipeline {
         label 'kaniko'
     }
 
+    options {
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+    }
+
     environment {
         IMAGE_TAG = "${env.GIT_COMMIT.take(7)}"
     }
@@ -39,7 +44,7 @@ pipeline {
                             echo "values.yaml already at tag ${IMAGE_TAG}, nothing to push."
                         else
                             git add charts/django-app/values.yaml
-                            git commit -m "ci: bump django-app image tag to ${IMAGE_TAG}"
+                            git commit -m "ci: bump django-app image tag to ${IMAGE_TAG} [ci skip]"
 
                             REPO_HOST_PATH="$(echo "${GIT_REPO_URL}" | sed 's|https://||')"
                             git push "https://${GIT_USER}:${GIT_TOKEN}@${REPO_HOST_PATH}" "HEAD:${GIT_TARGET_BRANCH}"
@@ -47,6 +52,12 @@ pipeline {
                     '''
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
         }
     }
 }

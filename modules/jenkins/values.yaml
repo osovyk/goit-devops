@@ -1,8 +1,17 @@
 controller:
   serviceType: LoadBalancer
 
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+    limits:
+      cpu: "2000m"
+      memory: "2048Mi"
+
   additionalPlugins:
     - kubernetes-credentials-provider
+    - ws-cleanup
 
   JCasC:
     defaultConfig: true

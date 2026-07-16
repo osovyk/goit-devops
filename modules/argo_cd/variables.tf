@@ -1,18 +1,3 @@
-variable "cluster_name" {
-  description = "Name of the EKS cluster Argo CD is deployed into"
-  type        = string
-}
-
-variable "cluster_endpoint" {
-  description = "API endpoint of the EKS cluster"
-  type        = string
-}
-
-variable "cluster_ca" {
-  description = "Base64-encoded certificate authority data for the EKS cluster"
-  type        = string
-}
-
 variable "namespace" {
   description = "Kubernetes namespace to install Argo CD into"
   type        = string
