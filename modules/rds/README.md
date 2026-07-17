@@ -19,11 +19,14 @@ Security Group, and a Parameter Group matching the selected database type.
 | `random_password` | only if `master_password` is not set | only if `master_password` is not set |
 
 > The standalone RDS path (`use_aurora = false`, PostgreSQL 17.6, `db.t3.micro`) has been
-> deployed and verified end-to-end: the instance reached the `available` state, the parameter
-> group applied all three baseline parameters (`max_connections`, `log_statement`, `work_mem`),
-> and the security group correctly restricted access to port 5432 to the given CIDR. The Aurora
-> path has been verified via `terraform plan` (correct resource set with no leftover RDS
-> resources) but not deployed end-to-end.
+> deployed and verified end-to-end: the instance reached the `available` state, an SSL client
+> connection succeeded, `SHOW` confirmed all three baseline parameters (`max_connections = 100`,
+> `log_statement = ddl`, `work_mem = 4MB`), a write/read round-trip worked, and the security
+> group restricted access to port 5432 to the given CIDR. The Aurora path plans correctly
+> (cluster + N instances + cluster parameter group, no leftover RDS resources) and its
+> `CreateDBCluster` call is well-formed, but the deploy was rejected by an account-level AWS
+> restriction (`FreeTierRestrictionError` — free-plan accounts cannot create standard Aurora
+> clusters), so it has not been verified end-to-end.
 
 ## Usage example
 
