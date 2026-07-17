@@ -1,13 +1,13 @@
 # rds
 
-Універсальний Terraform-модуль для бази даних на AWS. Залежно від прапора
-`use_aurora` створює або звичайну `aws_db_instance` (RDS), або Aurora-кластер
-(`aws_rds_cluster` + `aws_rds_cluster_instance`). В обох випадках модуль сам
-створює DB Subnet Group, Security Group і Parameter Group під обраний тип БД.
+Universal Terraform module for an AWS database. Depending on the `use_aurora` flag it creates
+either a standalone `aws_db_instance` (RDS) or an Aurora cluster (`aws_rds_cluster` +
+`aws_rds_cluster_instance`). In both cases the module creates its own DB Subnet Group,
+Security Group, and a Parameter Group matching the selected database type.
 
-## Що створюється
+## What gets created
 
-| Ресурс | use_aurora = false | use_aurora = true |
+| Resource | use_aurora = false | use_aurora = true |
 | --- | --- | --- |
 | `aws_db_subnet_group` | ✅ | ✅ |
 | `aws_security_group` | ✅ | ✅ |
@@ -16,18 +16,18 @@
 | `aws_rds_cluster` | — | ✅ |
 | `aws_rds_cluster_instance` (×`aurora_instance_count`) | — | ✅ |
 | `aws_rds_cluster_parameter_group` | — | ✅ |
-| `random_password` | тільки якщо `master_password` не задано | тільки якщо `master_password` не задано |
+| `random_password` | only if `master_password` is not set | only if `master_password` is not set |
 
-> Стандартний RDS-шлях (`use_aurora = false`, PostgreSQL 17.6, `db.t3.micro`) реально
-> задеплоєно й перевірено end-to-end: instance перейшов у статус `available`, parameter group
-> застосувала всі три базові параметри (`max_connections`, `log_statement`, `work_mem`), security
-> group коректно обмежив доступ до порту 5432 заданим CIDR. Aurora-шлях перевірено через
-> `terraform plan` (коректний набір ресурсів без залишків RDS-ресурсів), але не задеплоєно
-> end-to-end.
+> The standalone RDS path (`use_aurora = false`, PostgreSQL 17.6, `db.t3.micro`) has been
+> deployed and verified end-to-end: the instance reached the `available` state, the parameter
+> group applied all three baseline parameters (`max_connections`, `log_statement`, `work_mem`),
+> and the security group correctly restricted access to port 5432 to the given CIDR. The Aurora
+> path has been verified via `terraform plan` (correct resource set with no leftover RDS
+> resources) but not deployed end-to-end.
 
-## Приклад використання
+## Usage example
 
-### Звичайна RDS (PostgreSQL)
+### Standalone RDS (PostgreSQL)
 
 ```hcl
 module "rds" {
@@ -43,7 +43,7 @@ module "rds" {
 
   db_name         = "myapp"
   master_username = "myapp_admin"
-  # master_password не задано -> модуль згенерує випадковий і поверне у виводі
+  # master_password not set -> the module generates a random one and returns it as an output
 
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
@@ -56,7 +56,7 @@ module "rds" {
 }
 ```
 
-### Aurora-кластер (PostgreSQL-сумісний)
+### Aurora cluster (PostgreSQL-compatible)
 
 ```hcl
 module "rds_aurora" {
@@ -79,10 +79,10 @@ module "rds_aurora" {
 }
 ```
 
-### MySQL замість PostgreSQL
+### MySQL instead of PostgreSQL
 
-Досить змінити `engine_family` і відповідні версійні поля — уся інша логіка
-модуля (subnet group, SG, parameter group) не залежить від СУБД:
+Change `engine_family` and the matching version fields — the rest of the module's logic
+(subnet group, SG, parameter group) does not depend on the database engine:
 
 ```hcl
 module "rds_mysql" {
@@ -102,67 +102,66 @@ module "rds_mysql" {
 }
 ```
 
-## Як змінити тип БД / engine / клас інстансу
+## How to change the DB type / engine / instance class
 
-- **RDS ⇄ Aurora** — прапор `use_aurora` (`true`/`false`). Це форс-заміна
-  ресурсів (RDS instance видаляється, створюється Aurora cluster, або
-  навпаки) — не гаряче перемикання на існуючих даних.
-- **PostgreSQL ⇄ MySQL** — `engine_family` (`"postgres"` / `"mysql"`).
-  Модуль сам підставляє правильний `engine` для `aws_db_instance`
-  (`postgres`/`mysql`) чи `aws_rds_cluster` (`aurora-postgresql`/`aurora-mysql`).
-- **Версія двигуна** — `engine_version`. Значення відрізняється між RDS і
-  Aurora навіть для того самого `engine_family` — перевіряйте доступні версії
-  через `aws rds describe-db-engine-versions --engine <engine>`.
-- **Клас інстансу** — `instance_class` (напр. `db.t3.medium`, `db.r6g.large`).
-  Для Aurora застосовується до кожного `aws_rds_cluster_instance`.
-- **Кількість Aurora-інстансів** — `aurora_instance_count` (1 writer +
-  N-1 readers). Не застосовується при `use_aurora = false` — там
-  використовуйте `multi_az = true` замість декількох інстансів.
-- **Параметри БД** — базові (`max_connections`, `log_statement`/`general_log`,
-  `work_mem`/`sort_buffer_size`) виставляються автоматично залежно від
-  `engine_family`; додаткові/перевизначені параметри — через мапу
-  `db_parameters`.
+- **RDS ⇄ Aurora** — the `use_aurora` flag (`true`/`false`). This is a forced resource
+  replacement (the RDS instance is destroyed and an Aurora cluster is created, or vice
+  versa) — not a hot switch on existing data.
+- **PostgreSQL ⇄ MySQL** — `engine_family` (`"postgres"` / `"mysql"`). The module derives
+  the correct `engine` for `aws_db_instance` (`postgres`/`mysql`) or `aws_rds_cluster`
+  (`aurora-postgresql`/`aurora-mysql`) by itself.
+- **Engine version** — `engine_version`. Values differ between RDS and Aurora even for the
+  same `engine_family` — check the available versions with
+  `aws rds describe-db-engine-versions --engine <engine>`.
+- **Instance class** — `instance_class` (e.g. `db.t3.medium`, `db.r6g.large`). For Aurora
+  it is applied to every `aws_rds_cluster_instance`.
+- **Number of Aurora instances** — `aurora_instance_count` (1 writer + N-1 readers). Not
+  applicable when `use_aurora = false` — use `multi_az = true` there instead of multiple
+  instances.
+- **Database parameters** — the baseline ones (`max_connections`, `log_statement`/`general_log`,
+  `work_mem`/`sort_buffer_size`) are set automatically based on `engine_family`; extra or
+  overridden parameters go through the `db_parameters` map.
 
-## Змінні
+## Variables
 
-| Змінна | Опис | Тип | За замовчуванням |
+| Variable | Description | Type | Default |
 | --- | --- | --- | --- |
-| `identifier` | Базове ім'я всіх ресурсів модуля | `string` | — (обов'язкова) |
-| `use_aurora` | `true` → Aurora cluster, `false` → звичайна RDS instance | `bool` | `false` |
-| `engine_family` | `"postgres"` або `"mysql"` | `string` | `"postgres"` |
-| `engine_version` | Версія движка (має відповідати `engine_family`/`use_aurora`) | `string` | — (обов'язкова) |
-| `parameter_group_family` | Family для parameter group, напр. `"postgres16"`, `"aurora-postgresql16"` | `string` | — (обов'язкова) |
-| `instance_class` | Клас інстансу | `string` | `"db.t3.medium"` |
-| `multi_az` | Multi-AZ для звичайної RDS (ігнорується для Aurora) | `bool` | `false` |
-| `aurora_instance_count` | Кількість інстансів в Aurora-кластері | `number` | `1` |
-| `db_name` | Ім'я дефолтної бази даних | `string` | — (обов'язкова) |
-| `master_username` | Ім'я адміністратора БД. **Не використовуйте `"admin"`** — це зарезервоване слово для PostgreSQL на RDS, `CreateDBInstance` впаде з `InvalidParameterValue` | `string` | `"dbadmin"` |
-| `master_password` | Пароль адміністратора. `null` → модуль згенерує та поверне у `master_password` output | `string` | `null` |
-| `allocated_storage` | Розмір диска в ГБ (тільки для звичайної RDS) | `number` | `20` |
-| `storage_type` | Тип диска (тільки для звичайної RDS) | `string` | `"gp3"` |
-| `backup_retention_period` | Днів зберігання автобекапів | `number` | `7` |
-| `deletion_protection` | Захист від випадкового видалення | `bool` | `false` |
-| `skip_final_snapshot` | Пропустити фінальний снапшот при видаленні | `bool` | `true` |
-| `publicly_accessible` | Публічний доступ до БД | `bool` | `false` |
-| `port` | Порт БД. `null` → дефолтний порт движка (5432/3306) | `number` | `null` |
-| `vpc_id` | VPC для security group | `string` | — (обов'язкова) |
-| `subnet_ids` | Підмережі для DB subnet group (private, ≥2 AZ) | `list(string)` | — (обов'язкова) |
-| `allowed_cidr_blocks` | CIDR-блоки з доступом до БД | `list(string)` | `[]` |
-| `allowed_security_group_ids` | Security groups з доступом до БД | `list(string)` | `[]` |
-| `db_parameters` | Додаткові/перевизначені параметри parameter group | `map(string)` | `{}` |
-| `tags` | Теги для всіх ресурсів модуля | `map(string)` | `{}` |
+| `identifier` | Base name for all resources created by the module | `string` | — (required) |
+| `use_aurora` | `true` → Aurora cluster, `false` → standalone RDS instance | `bool` | `false` |
+| `engine_family` | `"postgres"` or `"mysql"` | `string` | `"postgres"` |
+| `engine_version` | Engine version (must match `engine_family`/`use_aurora`) | `string` | — (required) |
+| `parameter_group_family` | Parameter group family, e.g. `"postgres16"`, `"aurora-postgresql16"` | `string` | — (required) |
+| `instance_class` | Instance class | `string` | `"db.t3.medium"` |
+| `multi_az` | Multi-AZ for standalone RDS (ignored for Aurora) | `bool` | `false` |
+| `aurora_instance_count` | Number of instances in the Aurora cluster | `number` | `1` |
+| `db_name` | Name of the default database | `string` | — (required) |
+| `master_username` | Database admin username. **Do not use `"admin"`** — it is a reserved word for PostgreSQL on RDS, `CreateDBInstance` fails with `InvalidParameterValue` | `string` | `"dbadmin"` |
+| `master_password` | Admin password. `null` → the module generates one and returns it as the `master_password` output | `string` | `null` |
+| `allocated_storage` | Storage size in GB (standalone RDS only) | `number` | `20` |
+| `storage_type` | Storage type (standalone RDS only) | `string` | `"gp3"` |
+| `backup_retention_period` | Days to retain automated backups | `number` | `7` |
+| `deletion_protection` | Protection against accidental deletion | `bool` | `false` |
+| `skip_final_snapshot` | Skip the final snapshot on deletion | `bool` | `true` |
+| `publicly_accessible` | Public access to the database | `bool` | `false` |
+| `port` | Database port. `null` → the engine's default port (5432/3306) | `number` | `null` |
+| `vpc_id` | VPC for the security group | `string` | — (required) |
+| `subnet_ids` | Subnets for the DB subnet group (private, ≥2 AZs) | `list(string)` | — (required) |
+| `allowed_cidr_blocks` | CIDR blocks allowed to access the database | `list(string)` | `[]` |
+| `allowed_security_group_ids` | Security groups allowed to access the database | `list(string)` | `[]` |
+| `db_parameters` | Extra / overridden parameter group entries | `map(string)` | `{}` |
+| `tags` | Tags for all resources created by the module | `map(string)` | `{}` |
 
-## Виводи
+## Outputs
 
-| Вивід | Опис |
+| Output | Description |
 | --- | --- |
-| `endpoint` | Connection endpoint (writer endpoint для Aurora, endpoint для звичайної RDS) |
-| `reader_endpoint` | Aurora reader endpoint (`null` для звичайної RDS) |
-| `port` | Порт БД |
-| `db_name` | Ім'я дефолтної бази даних |
-| `master_username` | Ім'я адміністратора |
-| `master_password` | Пароль адміністратора (sensitive) |
-| `security_group_id` | ID security group бази даних |
-| `subnet_group_name` | Ім'я DB subnet group |
-| `id` | Ідентифікатор cluster/instance |
-| `arn` | ARN cluster/instance |
+| `endpoint` | Connection endpoint (writer endpoint for Aurora, instance endpoint for standalone RDS) |
+| `reader_endpoint` | Aurora reader endpoint (`null` for standalone RDS) |
+| `port` | Database port |
+| `db_name` | Name of the default database |
+| `master_username` | Admin username |
+| `master_password` | Admin password (sensitive) |
+| `security_group_id` | ID of the database security group |
+| `subnet_group_name` | Name of the DB subnet group |
+| `id` | Cluster/instance identifier |
+| `arn` | Cluster/instance ARN |
