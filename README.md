@@ -1,11 +1,11 @@
-# Lesson 9 — Jenkins + Terraform + ECR + Helm + Argo CD + RDS CI/CD
+# Lesson 10 — Jenkins + Terraform + ECR + Helm + Argo CD + RDS CI/CD
 
 Terraform project for provisioning AWS infrastructure with an EKS Kubernetes cluster, a full
 CI/CD pipeline (Jenkins building with Kaniko, pushing to ECR, updating the Helm chart), GitOps
 delivery (Argo CD auto-syncing the chart into the cluster), and a database layer (a reusable
 `rds` module that provisions either a standalone RDS instance or an Aurora cluster).
 
-Extends the previous CI/CD infrastructure (S3 backend, VPC, ECR, EKS, Jenkins, Argo CD, Helm chart)
+Extends the Lesson 9 infrastructure (S3 backend, VPC, ECR, EKS, Jenkins, Argo CD, Helm chart)
 with the `rds` module — see [`modules/rds/README.md`](modules/rds/README.md) for full module
 documentation (usage examples, all variables, how to switch RDS ⇄ Aurora / Postgres ⇄ MySQL).
 
@@ -35,7 +35,7 @@ and build history, and `post { always { cleanWs() } }` wipes the workspace after
 
 **This repo has no `main` branch** — it's lesson-per-branch (`lesson-3`, `lesson-4`, `lesson-5`,
 `lesson-7`, ...). The branch Jenkins pushes to and Argo CD tracks is controlled by
-`var.git_target_branch` (default `lesson-9`) and must be bumped each lesson.
+`var.git_target_branch` (default `lesson-10`) and must be bumped each lesson.
 
 ## Versions
 
@@ -264,10 +264,10 @@ All defaults are defined in root `variables.tf`. Module variables intentionally 
 | `argocd_namespace` | Kubernetes namespace for Argo CD | `argocd` |
 | `argocd_chart_version` | Version of the `argo/argo-cd` chart | `10.1.2` |
 | `git_repo_url` | HTTPS URL of this repo (Jenkins push target / Argo CD sync source) | `https://github.com/osovyk/goit-devops.git` |
-| `git_target_branch` | Branch Jenkins pushes to / Argo CD tracks (no `main` here — bump each lesson) | `lesson-9` |
+| `git_target_branch` | Branch Jenkins pushes to / Argo CD tracks (no `main` here — bump each lesson) | `lesson-10` |
 | `github_username` | GitHub username for Jenkins' push credentials | *(required, sensitive, no default)* |
 | `github_token` | GitHub PAT (repo scope) for Jenkins' push credentials | *(required, sensitive, no default)* |
-| `rds_identifier` | Base name for the RDS/Aurora resources | `lesson-9-db` |
+| `rds_identifier` | Base name for the RDS/Aurora resources | `lesson-10-db` |
 | `rds_use_aurora` | `true` → Aurora cluster, `false` → standalone RDS instance | `false` |
 | `rds_engine_family` | `"postgres"` or `"mysql"` | `postgres` |
 | `rds_engine_version` | Engine version (must match `rds_engine_family`/`rds_use_aurora`) | `17.6` |
@@ -340,7 +340,7 @@ kubectl -n jenkins get svc jenkins -o jsonpath='{.status.loadBalancer.ingress[0]
 ```
 
 In the Jenkins UI, create a **Pipeline** job (or Multibranch Pipeline) pointed at this repo's
-`Jenkinsfile` on the `git_target_branch` branch (default `lesson-9`). Every build:
+`Jenkinsfile` on the `git_target_branch` branch (default `lesson-10`). Every build:
 builds `app/Dockerfile` with Kaniko, pushes `<tag>` and `latest` to ECR, then bumps
 `charts/django-app/values.yaml` and pushes back to that same branch.
 
