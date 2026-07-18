@@ -26,9 +26,13 @@ resources:
 config:
   SECRET_KEY: "django-insecure-change-me-in-production"
   DEBUG: "True"
-  POSTGRES_HOST: "db"
+  # RDS instance provisioned by the rds module (rds_endpoint output, host part).
+  # Credentials mirror rds_master_username / rds_master_password from tfvars —
+  # kept in a ConfigMap to match the course setup; the instance is reachable
+  # only from inside the VPC (see the rds module's security group).
+  POSTGRES_HOST: "final-project-db.cl8uya0s0mcw.eu-west-1.rds.amazonaws.com"
   POSTGRES_PORT: "5432"
-  POSTGRES_DB: "mydb"
-  POSTGRES_USER: "myuser"
-  POSTGRES_PASSWORD: "mypassword"
+  POSTGRES_DB: "myapp"
+  POSTGRES_USER: "dbadmin"
+  POSTGRES_PASSWORD: "FinalProject2026pass"
   ALLOWED_HOSTS: "*"
