@@ -105,6 +105,17 @@ module "argo_cd" {
   depends_on = [module.eks]
 }
 
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  namespace                    = var.monitoring_namespace
+  prometheus_chart_version     = var.prometheus_chart_version
+  grafana_chart_version        = var.grafana_chart_version
+  metrics_server_chart_version = var.metrics_server_chart_version
+
+  depends_on = [module.eks]
+}
+
 module "rds" {
   source = "./modules/rds"
 

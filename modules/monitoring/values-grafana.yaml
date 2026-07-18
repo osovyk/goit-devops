@@ -1,0 +1,56 @@
+# grafana/grafana values, rendered via templatefile (prometheus_url).
+# The admin password is intentionally not set here: the chart generates a
+# random one into the "grafana" Secret — see the module's
+# grafana_admin_password_command output for how to read it.
+service:
+  type: ClusterIP
+  port: 80
+
+persistence:
+  enabled: false
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Provision the Prometheus data source so no manual "Add data source" step
+# is needed after the deploy.
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: ${prometheus_url}
+        isDefault: true
+
+# Pre-import community dashboards (grafana.com IDs) wired to that data source:
+# 1860 — Node Exporter Full, 315 — Kubernetes cluster monitoring (via Prometheus).
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      - name: default
+        orgId: 1
+        folder: ""
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards/default
+
+dashboards:
+  default:
+    node-exporter-full:
+      gnetId: 1860
+      revision: 37
+      datasource: Prometheus
+    kubernetes-cluster:
+      gnetId: 315
+      revision: 3
+      datasource: Prometheus

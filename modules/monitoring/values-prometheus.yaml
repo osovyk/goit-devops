@@ -1,0 +1,29 @@
+# prometheus-community/prometheus values. The chart's Kubernetes service
+# discovery defaults (apiservers, nodes, cadvisor, pods, services) are kept
+# as-is; only resource footprint is tuned for the small course cluster.
+server:
+  retention: 7d
+  persistentVolume:
+    enabled: true
+    size: 8Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+alertmanager:
+  enabled: true
+  persistence:
+    enabled: false
+
+prometheus-pushgateway:
+  enabled: false
+
+prometheus-node-exporter:
+  enabled: true
+
+kube-state-metrics:
+  enabled: true

@@ -18,8 +18,8 @@ pipeline {
                 container('kaniko') {
                     sh '''
                         /kaniko/executor \
-                          --context="$(pwd)/app" \
-                          --dockerfile="$(pwd)/app/Dockerfile" \
+                          --context="$(pwd)/Django/app" \
+                          --dockerfile="$(pwd)/Django/Dockerfile" \
                           --destination="${ECR_REPOSITORY_URL}:${IMAGE_TAG}" \
                           --destination="${ECR_REPOSITORY_URL}:latest"
                     '''

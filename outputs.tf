@@ -83,3 +83,23 @@ output "rds_master_password" {
   value       = module.rds.master_password
   sensitive   = true
 }
+
+output "monitoring_namespace" {
+  description = "Kubernetes namespace Prometheus and Grafana are installed into"
+  value       = module.monitoring.namespace
+}
+
+output "grafana_admin_password_command" {
+  description = "Command to retrieve the Grafana admin password"
+  value       = module.monitoring.grafana_admin_password_command
+}
+
+output "grafana_port_forward_command" {
+  description = "Command to open Grafana on http://localhost:3000"
+  value       = module.monitoring.grafana_port_forward_command
+}
+
+output "prometheus_port_forward_command" {
+  description = "Command to open the Prometheus UI on http://localhost:9090"
+  value       = module.monitoring.prometheus_port_forward_command
+}

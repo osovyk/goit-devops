@@ -1,0 +1,39 @@
+# Local development stack: Django (built from ../Django) + PostgreSQL.
+# In AWS the same image is built by Jenkins (Kaniko) and served from EKS,
+# with the database provided by the rds module instead of the db container.
+services:
+  django:
+    build:
+      context: ./app
+      dockerfile: ../Dockerfile
+    container_name: django
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=django-insecure-change-me-in-production
+      - DEBUG=True
+      - POSTGRES_DB=mydb
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword
+      - POSTGRES_HOST=db
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17
+    container_name: postgres
+    environment:
+      - POSTGRES_DB=mydb
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser -d mydb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

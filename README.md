@@ -1,19 +1,21 @@
-# Lesson 10 — Jenkins + Terraform + ECR + Helm + Argo CD + RDS CI/CD
+# Final Project — Django on AWS: Terraform + EKS + RDS + CI/CD + Monitoring
 
-Terraform project for provisioning AWS infrastructure with an EKS Kubernetes cluster, a full
-CI/CD pipeline (Jenkins building with Kaniko, pushing to ECR, updating the Helm chart), GitOps
-delivery (Argo CD auto-syncing the chart into the cluster), and a database layer (a reusable
-`rds` module that provisions either a standalone RDS instance or an Aurora cluster).
+Terraform project for provisioning the complete course infrastructure on AWS: an EKS Kubernetes
+cluster, a full CI/CD pipeline (Jenkins building with Kaniko, pushing to ECR, updating the Helm
+chart), GitOps delivery (Argo CD auto-syncing the chart into the cluster), a database layer (a
+reusable `rds` module that provisions either a standalone RDS instance or an Aurora cluster),
+and a monitoring stack (Prometheus + Grafana in the `monitoring` namespace, plus metrics-server
+so the app's HPA can autoscale).
 
-Extends the Lesson 9 infrastructure (S3 backend, VPC, ECR, EKS, Jenkins, Argo CD, Helm chart)
-with the `rds` module — see [`modules/rds/README.md`](modules/rds/README.md) for full module
-documentation (usage examples, all variables, how to switch RDS ⇄ Aurora / Postgres ⇄ MySQL).
+Assembles every previous lesson (S3 backend, VPC, ECR, EKS, Jenkins, Argo CD, Helm chart, RDS)
+and adds the `monitoring` module — see [`modules/rds/README.md`](modules/rds/README.md) for the
+database module documentation (usage examples, all variables, RDS ⇄ Aurora / Postgres ⇄ MySQL).
 
 ## Pipeline flow
 
 ```text
-push to app/ ──▶ Jenkins (Kubernetes agent + Kaniko)
-                    1. builds app/Dockerfile
+push to Django/ ──▶ Jenkins (Kubernetes agent + Kaniko)
+                    1. builds Django/Dockerfile
                     2. pushes image to ECR, tagged with the git short SHA
                     3. bumps charts/django-app/values.yaml `image.tag`
                     4. commits + pushes to $GIT_TARGET_BRANCH
@@ -35,7 +37,7 @@ and build history, and `post { always { cleanWs() } }` wipes the workspace after
 
 **This repo has no `main` branch** — it's lesson-per-branch (`lesson-3`, `lesson-4`, `lesson-5`,
 `lesson-7`, ...). The branch Jenkins pushes to and Argo CD tracks is controlled by
-`var.git_target_branch` (default `lesson-10`) and must be bumped each lesson.
+`var.git_target_branch` (default `final-project`) and must be bumped each lesson.
 
 ## Versions
 
@@ -47,6 +49,9 @@ and build history, and `post { always { cleanWs() } }` wipes the workspace after
 | Kubernetes (EKS) | 1.36 |
 | Jenkins chart (jenkins/jenkins) | 5.9.32 |
 | Argo CD chart (argo/argo-cd) | 10.1.2 |
+| Prometheus chart (prometheus-community/prometheus) | 29.17.0 |
+| Grafana chart (grafana/grafana) | 10.5.15 |
+| metrics-server chart (metrics-server/metrics-server) | 3.13.1 |
 | AWS CLI | v2 |
 
 ## Project Structure
@@ -57,13 +62,15 @@ and build history, and `post { always { cleanWs() } }` wipes the workspace after
 ├── backend.tf           # S3 remote state backend configuration (bucket + DynamoDB lock table)
 ├── variables.tf         # All root-level input variables with defaults
 ├── outputs.tf           # Aggregated outputs from all modules
-├── Jenkinsfile           # CI pipeline: Kaniko build/push + Helm chart tag bump
 ├── .gitignore
-├── app/                  # Django application source
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   ├── manage.py
-│   └── myproject/        # settings.py, urls.py, wsgi.py
+├── Django/               # Django application + everything needed to build/run it
+│   ├── app/              # Application source
+│   │   ├── requirements.txt
+│   │   ├── manage.py
+│   │   └── myproject/    # settings.py, urls.py, wsgi.py
+│   ├── Dockerfile        # Image built by Kaniko in CI (context: Django/app)
+│   ├── Jenkinsfile       # CI pipeline: Kaniko build/push + Helm chart tag bump
+│   └── docker-compose.yaml  # Local dev stack: Django + PostgreSQL
 ├── modules/
 │   ├── s3-backend/      # S3 bucket + DynamoDB for Terraform state
 │   │   ├── s3.tf        # S3 bucket with versioning, encryption, public access block
@@ -102,18 +109,27 @@ and build history, and `post { always { cleanWs() } }` wipes the workspace after
 │   │   ├── values.yaml    # Templated: JCasC global env vars, Kaniko pod template, resources
 │   │   ├── variables.tf
 │   │   └── outputs.tf
-│   └── argo_cd/          # Argo CD installed via Helm
-│       ├── argocd.tf      # helm_release "argocd" + helm_release "argocd_apps"
+│   ├── argo_cd/          # Argo CD installed via Helm
+│   │   ├── argocd.tf      # helm_release "argocd" + helm_release "argocd_apps"
+│   │   ├── providers.tf   # required_providers only — see note above
+│   │   ├── values.yaml
+│   │   ├── variables.tf
+│   │   ├── outputs.tf
+│   │   └── charts/        # Local chart rendering Argo CD Application/Repository resources
+│   │       ├── Chart.yaml
+│   │       ├── values.yaml
+│   │       └── templates/
+│   │           ├── application.yaml
+│   │           └── repository.yaml
+│   └── monitoring/       # Prometheus + Grafana (+ metrics-server for the HPA)
+│       ├── prometheus.tf          # helm_release prometheus-community/prometheus
+│       ├── grafana.tf             # helm_release grafana/grafana (provisioned data source + dashboards)
+│       ├── metrics_server.tf      # helm_release metrics-server into kube-system
+│       ├── values-prometheus.yaml # Retention, PVC, resources
+│       ├── values-grafana.yaml    # Data source URL, imported dashboards (1860, 315)
 │       ├── providers.tf   # required_providers only — see note above
-│       ├── values.yaml
 │       ├── variables.tf
-│       ├── outputs.tf
-│       └── charts/        # Local chart rendering Argo CD Application/Repository resources
-│           ├── Chart.yaml
-│           ├── values.yaml
-│           └── templates/
-│               ├── application.yaml
-│               └── repository.yaml
+│       └── outputs.tf
 └── charts/
     └── django-app/      # Helm chart for the Django application
         ├── Chart.yaml
@@ -218,6 +234,26 @@ writeup (usage examples, all variables/outputs, how to switch engines).
   (`postgres`/`mysql`) and Aurora (`aurora-postgresql`/`aurora-mysql`)
 - Deployed in `module.vpc.private_subnets`, reachable from the VPC CIDR (`allowed_cidr_blocks`)
 
+### monitoring
+
+Installs the observability stack into the `monitoring` namespace via Helm. Called from root with
+`depends_on = [module.eks]`, same reasoning as `jenkins`/`argo_cd`.
+
+- `helm_release "prometheus"` for `prometheus-community/prometheus` — Prometheus server (7-day
+  retention on an 8Gi PVC via the EBS CSI driver), Alertmanager, node-exporter and
+  kube-state-metrics; Pushgateway is disabled to save room on the small node group. The chart's
+  default Kubernetes service discovery scrapes apiservers, nodes, cAdvisor, pods and services
+  out of the box
+- `helm_release "grafana"` for `grafana/grafana` — ClusterIP service on port 80 (access via
+  `kubectl port-forward`, matching the assignment), the Prometheus data source provisioned
+  automatically (`http://prometheus-server.monitoring.svc:80`), and two community dashboards
+  pre-imported from grafana.com: **1860** (Node Exporter Full) and **315** (Kubernetes cluster
+  monitoring). The admin password is generated by the chart into the `grafana` Secret — read it
+  with the `grafana_admin_password_command` output
+- `helm_release "metrics_server"` into `kube-system` — EKS ships no metrics-server, and without
+  it the django-app HPA (`charts/django-app/templates/hpa.yaml`) can't read CPU utilization and
+  never scales; with it, `kubectl get hpa` shows live utilization against the 70% target
+
 ## Helm Chart — django-app
 
 Located in `charts/django-app/`. Deploys the Django app from ECR to EKS.
@@ -264,10 +300,10 @@ All defaults are defined in root `variables.tf`. Module variables intentionally 
 | `argocd_namespace` | Kubernetes namespace for Argo CD | `argocd` |
 | `argocd_chart_version` | Version of the `argo/argo-cd` chart | `10.1.2` |
 | `git_repo_url` | HTTPS URL of this repo (Jenkins push target / Argo CD sync source) | `https://github.com/osovyk/goit-devops.git` |
-| `git_target_branch` | Branch Jenkins pushes to / Argo CD tracks (no `main` here — bump each lesson) | `lesson-10` |
+| `git_target_branch` | Branch Jenkins pushes to / Argo CD tracks (no `main` here — bump each lesson) | `final-project` |
 | `github_username` | GitHub username for Jenkins' push credentials | *(required, sensitive, no default)* |
 | `github_token` | GitHub PAT (repo scope) for Jenkins' push credentials | *(required, sensitive, no default)* |
-| `rds_identifier` | Base name for the RDS/Aurora resources | `lesson-10-db` |
+| `rds_identifier` | Base name for the RDS/Aurora resources | `final-project-db` |
 | `rds_use_aurora` | `true` → Aurora cluster, `false` → standalone RDS instance | `false` |
 | `rds_engine_family` | `"postgres"` or `"mysql"` | `postgres` |
 | `rds_engine_version` | Engine version (must match `rds_engine_family`/`rds_use_aurora`) | `17.6` |
@@ -279,6 +315,10 @@ All defaults are defined in root `variables.tf`. Module variables intentionally 
 | `rds_master_username` | Master username for the database. Avoid `"admin"` — reserved word for postgres on RDS | `dbadmin` |
 | `rds_master_password` | Master password. Leave unset in `terraform.tfvars` to auto-generate | *(sensitive, `null` by default)* |
 | `rds_backup_retention_period` | Days to retain automated backups. This Free-Tier account caps it below the module's own default (7) | `1` |
+| `monitoring_namespace` | Kubernetes namespace for Prometheus and Grafana | `monitoring` |
+| `prometheus_chart_version` | Version of the `prometheus-community/prometheus` chart | `29.17.0` |
+| `grafana_chart_version` | Version of the `grafana/grafana` chart | `10.5.15` |
+| `metrics_server_chart_version` | Version of the `metrics-server/metrics-server` chart | `3.13.1` |
 
 ## Usage
 
@@ -329,34 +369,69 @@ aws eks update-kubeconfig --region eu-west-1 --name lesson-7-eks
 kubectl get nodes
 ```
 
-### Step 4 — Access Jenkins and create the pipeline job
+### Step 4 — Verify the deployed components
+
+```bash
+kubectl get all -n jenkins
+kubectl get all -n argocd
+kubectl get all -n monitoring
+```
+
+All pods should reach `Running`; Prometheus server, Alertmanager, node-exporter,
+kube-state-metrics and Grafana live in `monitoring`.
+
+### Step 5 — Access Jenkins and create the pipeline job
 
 ```bash
 # Admin password:
 terraform output -raw jenkins_admin_password_command | bash
 
-# UI address (LoadBalancer):
+# UI address (LoadBalancer), or port-forward to http://localhost:8080 instead:
 kubectl -n jenkins get svc jenkins -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+kubectl port-forward svc/jenkins 8080:8080 -n jenkins
 ```
 
 In the Jenkins UI, create a **Pipeline** job (or Multibranch Pipeline) pointed at this repo's
-`Jenkinsfile` on the `git_target_branch` branch (default `lesson-10`). Every build:
-builds `app/Dockerfile` with Kaniko, pushes `<tag>` and `latest` to ECR, then bumps
-`charts/django-app/values.yaml` and pushes back to that same branch.
+`Django/Jenkinsfile` (script path!) on the `git_target_branch` branch (default `final-project`).
+Every build: builds `Django/Dockerfile` with Kaniko, pushes `<tag>` and `latest` to ECR, then
+bumps `charts/django-app/values.yaml` and pushes back to that same branch.
 
-### Step 5 — Access Argo CD
+### Step 6 — Access Argo CD
 
 ```bash
 # Admin password:
 terraform output -raw argocd_admin_password_command | bash
 
-# UI address (LoadBalancer):
+# UI address (LoadBalancer), or port-forward to https://localhost:8081 instead:
 kubectl -n argocd get svc argocd-server -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+kubectl port-forward svc/argocd-server 8081:443 -n argocd
 ```
 
 The `django-app` Application is created automatically by `module.argo_cd` and auto-syncs on every
 push to `charts/django-app` on the `git_target_branch` branch — no manual `helm install` needed
 once Argo CD is up.
+
+### Step 7 — Monitoring: Grafana + Prometheus
+
+```bash
+# Grafana admin password (user: admin):
+terraform output -raw grafana_admin_password_command | bash
+
+# Grafana UI → http://localhost:3000
+kubectl port-forward svc/grafana 3000:80 -n monitoring
+
+# Prometheus UI → http://localhost:9090 (Status → Target health should be all UP)
+kubectl port-forward svc/prometheus-server 9090:80 -n monitoring
+```
+
+The Prometheus data source and two dashboards (Node Exporter Full — 1860, Kubernetes cluster
+monitoring — 315) are provisioned automatically; open **Dashboards** in Grafana and the cluster
+metrics are already flowing. Autoscaling check:
+
+```bash
+kubectl get hpa            # TARGETS shows live CPU % once metrics-server is up
+kubectl top nodes          # also served by metrics-server
+```
 
 ### Manual build/deploy (without Jenkins/Argo CD)
 
@@ -368,7 +443,7 @@ export ECR_URL=$(terraform output -raw ecr_repository_url)
 aws ecr get-login-password --region eu-west-1 | \
   docker login --username AWS --password-stdin $(echo $ECR_URL | cut -d/ -f1)
 
-docker build -t django-app ./app
+docker build -t django-app -f Django/Dockerfile Django/app
 docker tag django-app:latest $ECR_URL:latest
 docker push $ECR_URL:latest
 
@@ -384,6 +459,13 @@ kubectl get hpa
 ```bash
 helm upgrade django-app ./charts/django-app
 helm uninstall django-app
+```
+
+### Local development (no AWS)
+
+```bash
+cd Django
+docker compose up --build   # Django on http://localhost:8000, PostgreSQL 17 alongside
 ```
 
 ## Outputs
@@ -407,13 +489,18 @@ helm uninstall django-app
 | `rds_reader_endpoint` | Aurora reader endpoint (`null` for standalone RDS) |
 | `rds_master_username` | RDS/Aurora master username |
 | `rds_master_password` | RDS/Aurora master password (sensitive) |
+| `monitoring_namespace` | Kubernetes namespace Prometheus and Grafana are installed into |
+| `grafana_admin_password_command` | Command to retrieve the Grafana admin password |
+| `grafana_port_forward_command` | Command to open Grafana on `http://localhost:3000` |
+| `prometheus_port_forward_command` | Command to open the Prometheus UI on `http://localhost:9090` |
 
 ## Important Notes
 
 **Cost warning:** EKS cluster (~$0.10/hr), NAT Gateway, EC2 worker nodes, Elastic IP, two
-LoadBalancers (Jenkins UI, Argo CD UI), and now an RDS instance/Aurora cluster all incur AWS
-charges. Always run `terraform destroy` after testing. If Jenkins/Argo CD pods stay `Pending` due to
-resource pressure on the two `t3.medium` nodes, bump `desired_size`/`instance_type`.
+LoadBalancers (Jenkins UI, Argo CD UI), an RDS instance/Aurora cluster, and the monitoring
+stack's EBS volume (Prometheus PVC) all incur AWS charges. Always run `terraform destroy` after
+testing. If Jenkins/Argo CD/Prometheus pods stay `Pending` due to resource pressure on the
+node group, bump `desired_size`/`instance_type`.
 
 **EKS provisioning time:** ~15 minutes is normal for the control plane and node group.
 

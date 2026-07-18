@@ -127,7 +127,7 @@ variable "git_repo_url" {
 variable "git_target_branch" {
   description = "Branch Jenkins pushes tag bumps to and Argo CD tracks. This repo has no `main` — it's lesson-per-branch, so this must be updated each lesson."
   type        = string
-  default     = "lesson-10"
+  default     = "final-project"
 }
 
 variable "github_username" {
@@ -145,7 +145,7 @@ variable "github_token" {
 variable "rds_identifier" {
   description = "Base name for the RDS/Aurora resources"
   type        = string
-  default     = "lesson-10-db"
+  default     = "final-project-db"
 }
 
 variable "rds_use_aurora" {
@@ -213,4 +213,28 @@ variable "rds_backup_retention_period" {
   description = "Number of days to retain automated RDS/Aurora backups. Free-Tier-restricted AWS accounts may cap this below the module's own default (7)."
   type        = number
   default     = 1
+}
+
+variable "monitoring_namespace" {
+  description = "Kubernetes namespace for Prometheus and Grafana"
+  type        = string
+  default     = "monitoring"
+}
+
+variable "prometheus_chart_version" {
+  description = "Version of the prometheus-community/prometheus chart"
+  type        = string
+  default     = "29.17.0"
+}
+
+variable "grafana_chart_version" {
+  description = "Version of the grafana/grafana chart"
+  type        = string
+  default     = "10.5.15"
+}
+
+variable "metrics_server_chart_version" {
+  description = "Version of the metrics-server/metrics-server chart (required by the django-app HPA)"
+  type        = string
+  default     = "3.13.1"
 }
