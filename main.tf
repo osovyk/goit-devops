@@ -13,6 +13,10 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 2.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
   }
 }
 
@@ -51,6 +55,17 @@ module "vpc" {
   private_subnets    = var.private_subnets
   availability_zones = var.availability_zones
   vpc_name           = var.vpc_name
+
+  # Worker nodes live in private subnets; these tags let the in-tree AWS cloud
+  # provider discover which subnets to place Service LoadBalancers into.
+  public_subnet_tags = {
+    "kubernetes.io/role/elb"                    = "1"
+    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
+  }
+  private_subnet_tags = {
+    "kubernetes.io/role/internal-elb"           = "1"
+    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
+  }
 }
 
 module "ecr" {
@@ -63,7 +78,7 @@ module "eks" {
   source             = "./modules/eks"
   cluster_name       = var.cluster_name
   kubernetes_version = var.kubernetes_version
-  subnet_ids         = module.vpc.public_subnets
+  subnet_ids         = module.vpc.private_subnets
   instance_type      = var.instance_type
   desired_size       = var.desired_size
   max_size           = var.max_size
@@ -102,6 +117,33 @@ module "argo_cd" {
   helm_chart_path = "charts/django-app"
   target_revision = var.git_target_branch
 
+  # Injected as a Helm parameter on the Application so the ECR URL (account id)
+  # never has to be hardcoded in charts/django-app/values.yaml.
+  image_repository = module.ecr.repository_url
+
+  depends_on = [module.eks]
+}
+
+# Sensitive runtime settings for the Django app. Kept out of git entirely:
+# the chart's Deployment reads them via envFrom from this Secret, while the
+# ConfigMap in the chart carries only non-sensitive values.
+resource "random_password" "django_secret_key" {
+  length  = 50
+  special = false
+}
+
+resource "kubernetes_secret" "django_app" {
+  metadata {
+    name      = "django-app-secrets"
+    namespace = "default"
+  }
+
+  data = {
+    SECRET_KEY        = random_password.django_secret_key.result
+    POSTGRES_HOST     = split(":", module.rds.endpoint)[0]
+    POSTGRES_PASSWORD = module.rds.master_password
+  }
+
   depends_on = [module.eks]
 }
 
@@ -137,9 +179,9 @@ module "rds" {
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
-  # Django pods run in the public subnets (see module.eks.subnet_ids) — allow
-  # the whole VPC CIDR rather than a single node security group id, since the
-  # eks module doesn't expose one explicitly.
+  # Django pods run on nodes in the private subnets — allow the whole VPC CIDR
+  # rather than a single node security group id, since the eks module doesn't
+  # expose one explicitly.
   allowed_cidr_blocks = [var.vpc_cidr_block]
 
   tags = {

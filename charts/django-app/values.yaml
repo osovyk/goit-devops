@@ -1,5 +1,7 @@
 image:
-  repository: 486553676459.dkr.ecr.eu-west-1.amazonaws.com/lesson-5-ecr
+  # Set by Argo CD via a Helm parameter (fed from the ecr module by Terraform);
+  # for manual installs pass --set image.repository=<ECR URL>.
+  repository: ""
   tag: 84b461c
   pullPolicy: IfNotPresent
 
@@ -23,16 +25,17 @@ resources:
     cpu: 500m
     memory: 512Mi
 
+# Non-sensitive settings only — rendered into the ConfigMap.
+# SECRET_KEY, POSTGRES_HOST and POSTGRES_PASSWORD deliberately live in the
+# "django-app-secrets" Kubernetes Secret created by Terraform (root main.tf)
+# from the rds module outputs, so no credentials are stored in git.
 config:
-  SECRET_KEY: "django-insecure-change-me-in-production"
   DEBUG: "True"
-  # RDS instance provisioned by the rds module (rds_endpoint output, host part).
-  # Credentials mirror rds_master_username / rds_master_password from tfvars —
-  # kept in a ConfigMap to match the course setup; the instance is reachable
-  # only from inside the VPC (see the rds module's security group).
-  POSTGRES_HOST: "final-project-db.cl8uya0s0mcw.eu-west-1.rds.amazonaws.com"
   POSTGRES_PORT: "5432"
   POSTGRES_DB: "myapp"
   POSTGRES_USER: "dbadmin"
-  POSTGRES_PASSWORD: "FinalProject2026pass"
   ALLOWED_HOSTS: "*"
+
+# Secret with SECRET_KEY / POSTGRES_HOST / POSTGRES_PASSWORD, created outside
+# the chart (by Terraform). The Deployment mounts it via envFrom.
+existingSecret: django-app-secrets

@@ -157,6 +157,9 @@ Creates a full VPC network across 3 availability zones.
 - VPC with DNS support and hostnames enabled
 - 3 public subnets (`map_public_ip_on_launch = true`) and 3 private subnets
 - Internet Gateway, NAT Gateway (with Elastic IP), separate route tables
+- `public_subnet_tags` / `private_subnet_tags` inputs — root tags the subnets with
+  `kubernetes.io/role/elb` / `kubernetes.io/role/internal-elb` (+ cluster tag) so EKS can place
+  Service LoadBalancers into public subnets while worker nodes stay in private ones
 
 ### ecr
 
@@ -173,7 +176,8 @@ Creates a managed Kubernetes cluster on AWS EKS.
 - IAM role for the EKS control plane with `AmazonEKSClusterPolicy`
 - `aws_eks_cluster` with private and public endpoint access, Kubernetes 1.36
 - IAM role for worker nodes with `AmazonEKSWorkerNodePolicy`, `AmazonEKS_CNI_Policy`, `AmazonEC2ContainerRegistryReadOnly`
-- Managed node group: `ON_DEMAND`, `t3.medium`, 2 desired / 1 min / 3 max
+- Managed node group: `ON_DEMAND`, 2 desired / 1 min / 3 max, **placed in the private subnets**
+  (no public IPs on worker nodes; egress via the NAT Gateway)
 - IAM OIDC provider (`irsa.tf`) so pods can assume IAM roles via IRSA
 - `aws-ebs-csi-driver` EKS addon (IRSA) + default `gp3` StorageClass — required for any pod
   requesting a PVC (e.g. Jenkins), since EKS ships no in-tree provisioner or default StorageClass
@@ -210,7 +214,9 @@ Also called from root with `depends_on = [module.eks]`, same reasoning as `jenki
   on both, `replicas: 1` each
 - `helm_release "argocd_apps"` installs a small local chart (`modules/argo_cd/charts`) that
   renders an Argo CD `Application` per entry in its `applications` list — currently one entry,
-  `django-app`, pointed at `var.git_repo_url` / `charts/django-app` / `var.target_revision`
+  `django-app`, pointed at `var.git_repo_url` / `charts/django-app` / `var.target_revision`,
+  with `image.repository` passed as a Helm parameter (`var.image_repository`, fed from the
+  `ecr` module) so the ECR URL never lives in the chart's `values.yaml`
 - `syncPolicy.automated { prune: true, selfHeal: true }` — Argo CD auto-applies every change
   pushed to `charts/django-app/values.yaml` (i.e. every Jenkins tag bump) with no manual sync
 - The chart's `repository.yaml` template is included but unused for this public repo — it's there
@@ -260,10 +266,16 @@ Located in `charts/django-app/`. Deploys the Django app from ECR to EKS.
 
 | Template | Description |
 | --- | --- |
-| `deployment.yaml` | Deployment pulling Django image from ECR, env vars from ConfigMap |
+| `deployment.yaml` | Deployment pulling Django image from ECR; env from ConfigMap + `django-app-secrets` Secret |
 | `service.yaml` | LoadBalancer — external port 80, container port 8000 |
-| `configmap.yaml` | PostgreSQL connection env vars (POSTGRES_HOST, PORT, USER, DB, PASSWORD) |
+| `configmap.yaml` | Non-sensitive env vars only (DEBUG, POSTGRES_PORT/DB/USER, ALLOWED_HOSTS) |
 | `hpa.yaml` | HPA: minReplicas 2 / maxReplicas 6 / CPU threshold 70% |
+
+**No secrets in git:** `SECRET_KEY`, `POSTGRES_HOST` and `POSTGRES_PASSWORD` are **not** in
+`values.yaml` — Terraform (root `main.tf`) creates the `django-app-secrets` Kubernetes Secret
+from the `rds` module outputs plus a generated Django key, and the Deployment picks it up via
+`envFrom`. Likewise `image.repository` is injected by Argo CD as a Helm parameter (fed from the
+`ecr` module), so the AWS account id isn't hardcoded in the chart.
 
 ## Prerequisites
 
@@ -386,8 +398,7 @@ kube-state-metrics and Grafana live in `monitoring`.
 # Admin password:
 terraform output -raw jenkins_admin_password_command | bash
 
-# UI address (LoadBalancer), or port-forward to http://localhost:8080 instead:
-kubectl -n jenkins get svc jenkins -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+# UI → http://localhost:8080 (Jenkins is ClusterIP-only, not exposed to the internet):
 kubectl port-forward svc/jenkins 8080:8080 -n jenkins
 ```
 
@@ -402,8 +413,8 @@ bumps `charts/django-app/values.yaml` and pushes back to that same branch.
 # Admin password:
 terraform output -raw argocd_admin_password_command | bash
 
-# UI address (LoadBalancer), or port-forward to https://localhost:8081 instead:
-kubectl -n argocd get svc argocd-server -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+# UI → https://localhost:8081 (ClusterIP-only; the server uses its self-signed
+# TLS cert, so accept the browser warning):
 kubectl port-forward svc/argocd-server 8081:443 -n argocd
 ```
 
@@ -496,11 +507,11 @@ docker compose up --build   # Django on http://localhost:8000, PostgreSQL 17 alo
 
 ## Important Notes
 
-**Cost warning:** EKS cluster (~$0.10/hr), NAT Gateway, EC2 worker nodes, Elastic IP, two
-LoadBalancers (Jenkins UI, Argo CD UI), an RDS instance/Aurora cluster, and the monitoring
-stack's EBS volume (Prometheus PVC) all incur AWS charges. Always run `terraform destroy` after
-testing. If Jenkins/Argo CD/Prometheus pods stay `Pending` due to resource pressure on the
-node group, bump `desired_size`/`instance_type`.
+**Cost warning:** EKS cluster (~$0.10/hr), NAT Gateway, EC2 worker nodes, Elastic IP, the
+django-app LoadBalancer, an RDS instance/Aurora cluster, and the monitoring stack's EBS volume
+(Prometheus PVC) all incur AWS charges. Always run `terraform destroy` after testing. If
+Jenkins/Argo CD/Prometheus pods stay `Pending` due to resource pressure on the node group, bump
+`desired_size`/`instance_type`.
 
 **EKS provisioning time:** ~15 minutes is normal for the control plane and node group.
 

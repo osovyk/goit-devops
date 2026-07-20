@@ -18,14 +18,23 @@ resource "helm_release" "argocd_apps" {
     yamlencode({
       argocdNamespace = var.namespace
       applications = [
-        {
-          name                 = "django-app"
-          project              = "default"
-          repoURL              = var.git_repo_url
-          targetRevision       = var.target_revision
-          path                 = var.helm_chart_path
-          destinationNamespace = var.destination_namespace
-        },
+        merge(
+          {
+            name                 = "django-app"
+            project              = "default"
+            repoURL              = var.git_repo_url
+            targetRevision       = var.target_revision
+            path                 = var.helm_chart_path
+            destinationNamespace = var.destination_namespace
+          },
+          # The ECR repository URL is passed as a Helm parameter so it never
+          # has to be hardcoded in the chart's values.yaml in git.
+          var.image_repository != "" ? {
+            helmParameters = [
+              { name = "image.repository", value = var.image_repository },
+            ]
+          } : {}
+        ),
       ]
     })
   ]

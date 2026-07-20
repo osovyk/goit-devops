@@ -32,3 +32,9 @@ variable "destination_namespace" {
   type        = string
   default     = "default"
 }
+
+variable "image_repository" {
+  description = "Container image repository (ECR URL) injected into the Application as the image.repository Helm parameter. Empty string omits the override."
+  type        = string
+  default     = ""
+}

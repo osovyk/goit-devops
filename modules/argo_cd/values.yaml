@@ -1,7 +1,9 @@
 server:
   replicas: 1
+  # ClusterIP on purpose: the Argo CD UI must not be exposed to the internet.
+  # Access it with: kubectl port-forward svc/argocd-server 8081:443 -n argocd
   service:
-    type: LoadBalancer
+    type: ClusterIP
   resources:
     requests:
       cpu: 100m
@@ -19,7 +21,3 @@ repoServer:
     limits:
       cpu: 500m
       memory: 512Mi
-
-configs:
-  params:
-    server.insecure: true

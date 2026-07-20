@@ -22,3 +22,15 @@ variable "vpc_name" {
   description = "Name of the VPC"
   type        = string
 }
+
+variable "public_subnet_tags" {
+  description = "Extra tags for public subnets (e.g. kubernetes.io/role/elb for EKS LoadBalancer discovery)"
+  type        = map(string)
+  default     = {}
+}
+
+variable "private_subnet_tags" {
+  description = "Extra tags for private subnets (e.g. kubernetes.io/role/internal-elb)"
+  type        = map(string)
+  default     = {}
+}

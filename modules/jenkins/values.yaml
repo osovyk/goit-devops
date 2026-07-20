@@ -1,5 +1,7 @@
 controller:
-  serviceType: LoadBalancer
+  # ClusterIP on purpose: Jenkins must not be exposed to the internet.
+  # Access it with: kubectl port-forward svc/jenkins 8080:8080 -n jenkins
+  serviceType: ClusterIP
 
   resources:
     requests:

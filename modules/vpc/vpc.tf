@@ -16,9 +16,9 @@ resource "aws_subnet" "public" {
 
   map_public_ip_on_launch = true
 
-  tags = {
+  tags = merge(var.public_subnet_tags, {
     Name = "${var.vpc_name}-public-subnet-${count.index + 1}"
-  }
+  })
 }
 
 resource "aws_subnet" "private" {
@@ -27,9 +27,9 @@ resource "aws_subnet" "private" {
   cidr_block        = var.private_subnets[count.index]
   availability_zone = var.availability_zones[count.index]
 
-  tags = {
+  tags = merge(var.private_subnet_tags, {
     Name = "${var.vpc_name}-private-subnet-${count.index + 1}"
-  }
+  })
 }
 
 resource "aws_internet_gateway" "igw" {
