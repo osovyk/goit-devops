@@ -1,13 +1,13 @@
-resource "kubernetes_namespace" "jenkins" {
+resource "kubernetes_namespace_v1" "jenkins" {
   metadata {
     name = var.namespace
   }
 }
 
-resource "kubernetes_secret" "github_credentials" {
+resource "kubernetes_secret_v1" "github_credentials" {
   metadata {
     name      = "github-credentials"
-    namespace = kubernetes_namespace.jenkins.metadata[0].name
+    namespace = kubernetes_namespace_v1.jenkins.metadata[0].name
     labels = {
       "jenkins.io/credentials-type" = "usernamePassword"
     }
@@ -29,7 +29,7 @@ resource "helm_release" "jenkins" {
   repository = "https://charts.jenkins.io"
   chart      = "jenkins"
   version    = var.chart_version
-  namespace  = kubernetes_namespace.jenkins.metadata[0].name
+  namespace  = kubernetes_namespace_v1.jenkins.metadata[0].name
 
   values = [
     templatefile("${path.module}/values.yaml", {

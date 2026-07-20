@@ -44,12 +44,14 @@ and build history, and `post { always { cleanWs() } }` wipes the workspace after
 | Tool / Component | Version |
 | --- | --- |
 | Terraform | >= 1.15.7 |
-| AWS Provider | ~> 6.52 |
-| Helm | 4.2.2 |
+| AWS provider (hashicorp/aws) | ~> 6.0 (6.55.0) |
+| Kubernetes provider (hashicorp/kubernetes) | ~> 3.0 (3.2.1) |
+| Helm provider (hashicorp/helm) | ~> 3.0 (3.2.0) |
+| Helm CLI | >= 4.2.2 |
 | Kubernetes (EKS) | 1.36 |
-| Jenkins chart (jenkins/jenkins) | 5.9.32 |
-| Argo CD chart (argo/argo-cd) | 10.1.2 |
-| Prometheus chart (prometheus-community/prometheus) | 29.17.0 |
+| Jenkins chart (jenkins/jenkins) | 5.9.39 |
+| Argo CD chart (argo/argo-cd) | 10.1.4 |
+| Prometheus chart (prometheus-community/prometheus) | 29.18.0 |
 | Grafana chart (grafana/grafana) | 10.5.15 |
 | metrics-server chart (metrics-server/metrics-server) | 3.13.1 |
 | AWS CLI | v2 |
@@ -279,10 +281,10 @@ from the `rds` module outputs plus a generated Django key, and the Deployment pi
 
 ## Prerequisites
 
-- [Terraform](https://developer.hashicorp.com/terraform/install) >= 1.15.7
-- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) v2
-- [kubectl](https://kubernetes.io/docs/tasks/tools/)
-- [Helm](https://helm.sh/docs/intro/install/) >= 4.2.2
+- [Terraform](https://developer.hashicorp.com/terraform/install) >= 1.15.8
+- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) v2 (>= 2.36.2)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/) >= 1.36 (match the EKS cluster version)
+- [Helm](https://helm.sh/docs/intro/install/) >= 4.2.3
 - AWS credentials configured: `aws configure`
 
 ## Variables
@@ -308,9 +310,9 @@ All defaults are defined in root `variables.tf`. Module variables intentionally 
 | `max_size` | Maximum number of worker nodes | `3` |
 | `min_size` | Minimum number of worker nodes | `1` |
 | `jenkins_namespace` | Kubernetes namespace for Jenkins | `jenkins` |
-| `jenkins_chart_version` | Version of the `jenkins/jenkins` chart | `5.9.32` |
+| `jenkins_chart_version` | Version of the `jenkins/jenkins` chart | `5.9.39` |
 | `argocd_namespace` | Kubernetes namespace for Argo CD | `argocd` |
-| `argocd_chart_version` | Version of the `argo/argo-cd` chart | `10.1.2` |
+| `argocd_chart_version` | Version of the `argo/argo-cd` chart | `10.1.4` |
 | `git_repo_url` | HTTPS URL of this repo (Jenkins push target / Argo CD sync source) | `https://github.com/osovyk/goit-devops.git` |
 | `git_target_branch` | Branch Jenkins pushes to / Argo CD tracks (no `main` here — bump each lesson) | `final-project` |
 | `github_username` | GitHub username for Jenkins' push credentials | *(required, sensitive, no default)* |
@@ -328,7 +330,7 @@ All defaults are defined in root `variables.tf`. Module variables intentionally 
 | `rds_master_password` | Master password. Leave unset in `terraform.tfvars` to auto-generate | *(sensitive, `null` by default)* |
 | `rds_backup_retention_period` | Days to retain automated backups. This Free-Tier account caps it below the module's own default (7) | `1` |
 | `monitoring_namespace` | Kubernetes namespace for Prometheus and Grafana | `monitoring` |
-| `prometheus_chart_version` | Version of the `prometheus-community/prometheus` chart | `29.17.0` |
+| `prometheus_chart_version` | Version of the `prometheus-community/prometheus` chart | `29.18.0` |
 | `grafana_chart_version` | Version of the `grafana/grafana` chart | `10.5.15` |
 | `metrics_server_chart_version` | Version of the `metrics-server/metrics-server` chart | `3.13.1` |
 

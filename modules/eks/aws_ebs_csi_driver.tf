@@ -40,7 +40,7 @@ resource "aws_eks_addon" "ebs_csi_driver" {
   depends_on = [aws_eks_node_group.general]
 }
 
-resource "kubernetes_storage_class" "gp3" {
+resource "kubernetes_storage_class_v1" "gp3" {
   metadata {
     name = "gp3"
     annotations = {

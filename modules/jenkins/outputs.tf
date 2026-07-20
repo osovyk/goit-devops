@@ -1,11 +1,11 @@
 output "namespace" {
   description = "Kubernetes namespace Jenkins is installed into"
-  value       = kubernetes_namespace.jenkins.metadata[0].name
+  value       = kubernetes_namespace_v1.jenkins.metadata[0].name
 }
 
 output "admin_password_command" {
   description = "kubectl command to retrieve the Jenkins admin password"
-  value       = "kubectl -n ${kubernetes_namespace.jenkins.metadata[0].name} exec --stdin --tty svc/jenkins -c jenkins -- /bin/cat /run/secrets/additional/chart-admin-password && echo"
+  value       = "kubectl -n ${kubernetes_namespace_v1.jenkins.metadata[0].name} exec --stdin --tty svc/jenkins -c jenkins -- /bin/cat /run/secrets/additional/chart-admin-password && echo"
 }
 
 output "jenkins_agent_role_arn" {

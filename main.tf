@@ -7,11 +7,11 @@ terraform {
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
-      version = "~> 2.0"
+      version = "~> 3.0"
     }
     helm = {
       source  = "hashicorp/helm"
-      version = "~> 2.0"
+      version = "~> 3.0"
     }
     random = {
       source  = "hashicorp/random"
@@ -35,7 +35,7 @@ provider "kubernetes" {
 }
 
 provider "helm" {
-  kubernetes {
+  kubernetes = {
     host                   = module.eks.eks_cluster_endpoint
     cluster_ca_certificate = base64decode(module.eks.eks_cluster_certificate)
     token                  = data.aws_eks_cluster_auth.this.token
@@ -117,8 +117,6 @@ module "argo_cd" {
   helm_chart_path = "charts/django-app"
   target_revision = var.git_target_branch
 
-  # Injected as a Helm parameter on the Application so the ECR URL (account id)
-  # never has to be hardcoded in charts/django-app/values.yaml.
   image_repository = module.ecr.repository_url
 
   depends_on = [module.eks]
@@ -132,7 +130,7 @@ resource "random_password" "django_secret_key" {
   special = false
 }
 
-resource "kubernetes_secret" "django_app" {
+resource "kubernetes_secret_v1" "django_app" {
   metadata {
     name      = "django-app-secrets"
     namespace = "default"

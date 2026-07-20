@@ -103,7 +103,7 @@ variable "jenkins_namespace" {
 variable "jenkins_chart_version" {
   description = "Version of the jenkins/jenkins Helm chart"
   type        = string
-  default     = "5.9.32"
+  default     = "5.9.39"
 }
 
 variable "argocd_namespace" {
@@ -115,7 +115,7 @@ variable "argocd_namespace" {
 variable "argocd_chart_version" {
   description = "Version of the argo/argo-cd Helm chart"
   type        = string
-  default     = "10.1.2"
+  default     = "10.1.4"
 }
 
 variable "git_repo_url" {
@@ -224,7 +224,7 @@ variable "monitoring_namespace" {
 variable "prometheus_chart_version" {
   description = "Version of the prometheus-community/prometheus chart"
   type        = string
-  default     = "29.17.0"
+  default     = "29.18.0"
 }
 
 variable "grafana_chart_version" {
