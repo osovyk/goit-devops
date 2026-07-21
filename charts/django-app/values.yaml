@@ -2,7 +2,7 @@ image:
   # Set by Argo CD via a Helm parameter (fed from the ecr module by Terraform);
   # for manual installs pass --set image.repository=<ECR URL>.
   repository: ""
-  tag: 84b461c
+  tag: 70e2aff
   pullPolicy: IfNotPresent
 
 service:
